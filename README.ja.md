@@ -10,8 +10,10 @@
 AI エージェントのためのゼロトラスト：壊すものと想定し、すべてのステップを記録し、触ったファイルを巻き戻せるようにする。
 コーディングエージェントのためのフライトレコーダー兼タイムマシン。自分で決めるガードレールと、改ざんを検証できるログ付き。
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
+[公式サイト](https://zerostel.com) · [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
+[![npm](https://img.shields.io/npm/v/zerostel)](https://www.npmjs.com/package/zerostel)
+[![CI](https://github.com/zerostel/zerostel/actions/workflows/ci.yml/badge.svg)](https://github.com/zerostel/zerostel/actions/workflows/ci.yml)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Node 20+](https://img.shields.io/badge/node-%E2%89%A520-green)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -80,7 +82,7 @@ npx zerostel install          # その場で実行、グローバルには入れ
 npm install -g zerostel       # zerostel コマンドを常に使えるようにする
 ```
 
-`npx` は信頼できるフォルダ（ホームフォルダなど）で実行してください。プロジェクトのフォルダ内では、npx はそのプロジェクトが用意した同名のパッケージを優先します。git が必要です。npm で入れる場合は Node 20 以上も必要です。Node がない場合は、各リリースに Node を内蔵した単一の実行ファイル（Windows・macOS・Linux、x64 と arm64）があります。[Releases](https://github.com/zerostel/zerostel/releases) からダウンロードして `zerostel install` を実行すると、自身を `~/.zerostel/bin` にコピーします。`gh attestation verify <ファイル> --repo zerostel/zerostel` で、このリポジトリのリリースワークフローでビルドされたものか確認できます。Homebrew と Scoop のパッケージは [packaging/](packaging) に用意してあり、最初のリリースで公開します。
+`npx` は信頼できるフォルダ（ホームフォルダなど）で実行してください。プロジェクトのフォルダ内では、npx はそのプロジェクトが用意した同名のパッケージを優先します。git が必要です。npm で入れる場合は Node 20 以上も必要です。Node がない場合は、各リリースに Node を内蔵した単一の実行ファイル（Windows・macOS・Linux、x64 と arm64）があります。[Releases](https://github.com/zerostel/zerostel/releases) からダウンロードして `zerostel install` を実行すると、自身を `~/.zerostel/bin` にコピーします。`gh attestation verify <ファイル> --repo zerostel/zerostel` で、このリポジトリのリリースワークフローでビルドされたものか確認できます。Homebrew と Scoop のパッケージは準備中です。テンプレートは [packaging/](packaging) にあります。
 
 `zerostel install` は自身を `~/.zerostel/bin` にコピーするので、npx のキャッシュが消えてもフックは動き続けます。そのうえで見つかったエージェントすべてにフックを追加します。変更内容を表示し、編集する設定ファイルはすべてバックアップします。
 
@@ -315,8 +317,6 @@ Zerostel はプロジェクトを信頼しません。ファイル名が git の
 **undo でエージェントのしたことはすべて元に戻る？** いいえ。取得済みのファイル、つまりプロジェクトと `watch` に挙げたファイルを戻すだけです。コマンドがグローバルにインストール・削除したパッケージ（npm、pip、Homebrew）は、元に戻すためのコマンドと一緒にステップとして表示されます。巻き戻し時に一覧にしますが、代わりに実行することはありません。Windows で `setx` などにより変更されたユーザー環境変数は元に戻します。ネットワークリクエスト、デプロイ、データベースへの書き込み、本来の `.git` への変更は戻りませんし、エージェントの会話も巻き戻りません。それはエージェント側で巻き戻すか、新しいセッションを始めてください。
 
 **一方のエージェントだけを undo して、もう一方は作業を続けられる？** 安全ではありません。undo はプロジェクト全体（または `--only` で指定したパス）を戻すので、その間の他のエージェントやあなた自身の変更も戻ります。`--dry-run` でプレビューし、同時に動かすエージェントには別々の worktree を使ってください。
-
-**エージェントが遅くなりませんか？** フック 1 回はおよそ 0.1〜0.5 秒で、スナップショットを取るのはファイルを変更しうるツールだけです。git のインデックスのおかげで、変更のないファイルは読み直しません。
 
 **ディスクはどのくらい使いますか？** 同じ内容は一度だけ圧縮して保存されます。`zerostel status` で合計を確認でき、`zerostel prune` で古いセッションを削除できます。
 

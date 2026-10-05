@@ -10,8 +10,10 @@
 給 AI agent 的零信任：假設它一定會出錯，記下每一步，把它動過的檔案倒帶回去。
 AI coding agent 的行車紀錄器加時光機，附上你自己定的防護規則，以及能驗證有沒有被竄改的紀錄。
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
+[官網](https://zerostel.com) · [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
+[![npm](https://img.shields.io/npm/v/zerostel)](https://www.npmjs.com/package/zerostel)
+[![CI](https://github.com/zerostel/zerostel/actions/workflows/ci.yml/badge.svg)](https://github.com/zerostel/zerostel/actions/workflows/ci.yml)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Node 20+](https://img.shields.io/badge/node-%E2%89%A520-green)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -80,7 +82,7 @@ npx zerostel install          # 直接執行，不做全域安裝
 npm install -g zerostel       # 或是保留 zerostel 指令
 ```
 
-請在你信任的資料夾（例如家目錄）執行 `npx`：在專案資料夾裡，npx 會優先使用專案自己提供的同名套件。需要 git；用 npm 安裝的話還需要 Node 20 以上。沒有 Node？每個版本也會附上內含 Node 的單一執行檔，支援 Windows、macOS、Linux 的 x64 和 arm64：從 [Releases](https://github.com/zerostel/zerostel/releases) 下載後執行 `zerostel install`，它會把自己複製到 `~/.zerostel/bin`。`gh attestation verify <檔案> --repo zerostel/zerostel` 可以確認下載的檔案是由這個 repo 的發布流程建置的。Homebrew 和 Scoop 的套件已放在 [packaging/](packaging)，第一個正式版本會一起發布。
+請在你信任的資料夾（例如家目錄）執行 `npx`：在專案資料夾裡，npx 會優先使用專案自己提供的同名套件。需要 git；用 npm 安裝的話還需要 Node 20 以上。沒有 Node？每個版本也會附上內含 Node 的單一執行檔，支援 Windows、macOS、Linux 的 x64 和 arm64：從 [Releases](https://github.com/zerostel/zerostel/releases) 下載後執行 `zerostel install`，它會把自己複製到 `~/.zerostel/bin`。`gh attestation verify <檔案> --repo zerostel/zerostel` 可以確認下載的檔案是由這個 repo 的發布流程建置的。Homebrew 和 Scoop 的套件即將推出，範本在 [packaging/](packaging)。
 
 `zerostel install` 會把自己複製到 `~/.zerostel/bin`，就算 npx 快取被清掉 hooks 也照樣能用，然後替找到的每個 agent 加上 hooks。修改前會顯示差異，並備份每個被改到的設定檔。
 
@@ -315,8 +317,6 @@ Zerostel 把專案視為不可信任：檔名不會變成 git 選項或比對樣
 **undo 會把 agent 做的事全部撤回嗎？** 不會。它只把有拍到的檔案放回去：專案，以及你在 `watch` 列出的檔案。指令全域安裝或移除的套件（npm、pip、Homebrew）會顯示成一步，並附上撤銷用的指令；倒帶時 Zerostel 會列出來，但絕不替你執行。Windows 上用 `setx` 等方式改的使用者環境變數會被還原。網路請求、部署、資料庫寫入、你真正的 `.git` 都不會被撤回，agent 的對話也不會倒轉，那部分請在 agent 裡另外 rewind，或開新 session。
 
 **可以只撤銷一個 agent，讓另一個繼續工作嗎？** 不安全。undo 會還原整個專案（或 `--only` 指定的路徑），期間其他 agent 或你自己的修改也會一起被還原。先用 `--dry-run` 預覽；同時跑的 agent 請用不同的 worktree。
-
-**會拖慢 agent 嗎？** 每個 hook 大約 0.1–0.5 秒，只有會改檔案的工具才拍快照。靠 git 的 index，沒變的檔案不會重讀。
 
 **會佔多少硬碟？** 相同內容只存一份並壓縮。`zerostel status` 會顯示總量，`zerostel prune` 可以清掉舊的 session。
 

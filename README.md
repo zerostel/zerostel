@@ -10,8 +10,10 @@
 Zero trust for AI agents: assume they'll break something, record every step, and rewind the files they touched.
 A flight recorder and time machine for coding agents, with guardrails you set and a log that shows if it was edited.
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
+[Website](https://zerostel.com) · [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
+[![npm](https://img.shields.io/npm/v/zerostel)](https://www.npmjs.com/package/zerostel)
+[![CI](https://github.com/zerostel/zerostel/actions/workflows/ci.yml/badge.svg)](https://github.com/zerostel/zerostel/actions/workflows/ci.yml)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Node 20+](https://img.shields.io/badge/node-%E2%89%A520-green)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -80,7 +82,7 @@ npx zerostel install          # one-off, nothing installed globally
 npm install -g zerostel       # or keep the `zerostel` command around
 ```
 
-Run `npx` from a folder you trust, such as your home folder: inside a project, npx prefers a copy of the package that the project itself provides. You need git, and Node 20 or newer for npm. No Node? Every release also has a single executable with Node inside, for Windows, macOS and Linux on x64 and arm64: download it from [Releases](https://github.com/zerostel/zerostel/releases), run `zerostel install`, and it copies itself to `~/.zerostel/bin`. `gh attestation verify <file> --repo zerostel/zerostel` checks that a download was built by this repository's release workflow. Homebrew and Scoop packages are prepared in [packaging/](packaging) and ship with the first release.
+Run `npx` from a folder you trust, such as your home folder: inside a project, npx prefers a copy of the package that the project itself provides. You need git, and Node 20 or newer for npm. No Node? Every release also has a single executable with Node inside, for Windows, macOS and Linux on x64 and arm64: download it from [Releases](https://github.com/zerostel/zerostel/releases), run `zerostel install`, and it copies itself to `~/.zerostel/bin`. `gh attestation verify <file> --repo zerostel/zerostel` checks that a download was built by this repository's release workflow. Homebrew and Scoop packages are coming; their templates are in [packaging/](packaging).
 
 `zerostel install` copies itself to `~/.zerostel/bin`, so hooks keep working after an npx cache cleanup, and adds hooks to every agent it finds. It shows the change and keeps a backup of each config file it edits.
 
@@ -315,8 +317,6 @@ The first snapshot reads every file once; it starts as the session opens and the
 **Does undo reverse everything the agent did?** No. It puts captured files back: the project, and the files you listed under `watch`. Global packages a command installed or removed (npm, pip, Homebrew) show up as a step with the commands that would undo them; Zerostel lists them on rewind but never runs them. On Windows, user environment variables changed with `setx` and the like are put back. It doesn't undo network requests, deployments, database writes or changes to your real `.git`, and it doesn't rewind the agent's conversation. Rewind that in the agent too, or start a new session.
 
 **Can I undo one agent while another keeps working?** Not safely. An undo restores the whole project (or the paths you give `--only`), including changes another agent or you made in the meantime. Preview with `--dry-run`, and give agents that run at the same time separate worktrees.
-
-**Does it slow the agent down?** A hook takes roughly 0.1–0.5 s, and only tools that can change files trigger a snapshot. Unchanged files are not re-read thanks to git's index.
 
 **How much disk does it use?** Identical content is stored once and compressed. `zerostel status` shows the total, and `zerostel prune` drops old sessions.
 

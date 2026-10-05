@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 (2026-10-05)
 
 Fixes from a security and data-safety review. Nothing to change on your side; the snapshot store updates itself on first use.
 

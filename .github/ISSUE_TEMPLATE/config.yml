@@ -3,3 +3,6 @@ contact_links:
   - name: Security problem
     url: https://github.com/zerostel/zerostel/security/advisories/new
     about: Please report vulnerabilities privately.
+  - name: Questions and ideas
+    url: https://github.com/zerostel/zerostel/discussions
+    about: How to set something up, whether Zerostel fits your workflow, what it should do next.

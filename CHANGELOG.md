@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 (2026-10-05)
+
+No changes to what Zerostel records or rewinds; this release brings the package page and the release process up to date.
+
+- The README on npm links the website and the security model in every language, no longer promises Homebrew and Scoop packages that aren't out yet, and answers "does it slow the agent down?" once, with the measured numbers. The package's homepage is now zerostel.com.
+- Contributor docs: how pull requests work, supported versions and how to report a vulnerability, a feature request form and a support page.
+- Releases are built and staged on npm by CI through trusted publishing, with no npm token anywhere, and go live only when a maintainer approves them with two-factor authentication. The MCP Registry entry is published the same way, with GitHub OIDC.
+- The GitHub Action uses `actions/upload-artifact` v7, which needs Actions Runner 2.327.1 or newer on self-hosted runners.
+
 ## 0.1.0 (2026-10-05)
 
 Record

@@ -42,3 +42,4 @@ The timeline and the `zerostel verify` result go to the job summary; the report 
 - A deny rule stops the tool call inside the agent; the run continues and the block shows in the timeline. To fail the job on a block, check the summary or the report in a later step.
 - Codex asks to approve new hooks the first time; in CI, check that your Codex setup runs them non-interactively, or use `agent: none`.
 - Keep `permissions` as narrow as the agent needs. The action itself only needs to read the repository.
+- The actions it uses are pinned to commit SHAs. Uploading the report needs Actions Runner 2.327.1 or newer, which GitHub-hosted runners already have; update self-hosted runners first.

@@ -286,7 +286,7 @@ args = ["mcp"]
 
 時間軸會保存提示、指令和指令輸出的最後一段。API key、token 和密碼會盡量遮蔽，但格式特殊的秘密不保證遮得到。檔案內容只存在快照 repo 裡。報告不會包含 `.env` 這類檔案，`--share` 則完全不含提示、指令、輸出和 diff，但檔案路徑和時間仍在。
 
-Zerostel 把專案視為不可信任：檔名不會變成 git 選項或比對樣式、連結不會讓快照或還原跑出專案、專案資料夾裡的程式不會被當成 git 或 shell 執行、輸出裡的終端控制碼會被濾掉。`zerostel ui` 只聽 127.0.0.1，而且需要它印出的連結裡的隨機 token。發現問題請看 [SECURITY.md](SECURITY.md)。
+Zerostel 把專案視為不可信任：檔名不會變成 git 選項或比對樣式、連結不會讓快照或還原跑出專案、專案資料夾裡的程式不會被當成 git 或 shell 執行、輸出裡的終端控制碼會被濾掉。`zerostel ui` 只聽 127.0.0.1，而且需要它印出的連結裡的隨機 token。[docs/security-model.md](docs/security-model.md)（英文）說明 Zerostel 保護什麼、不保護什麼；發現問題請看 [SECURITY.md](SECURITY.md)。
 
 ## 名字的由來
 

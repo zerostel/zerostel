@@ -286,7 +286,7 @@ args = ["mcp"]
 
 时间线会保存提示、命令和命令输出的最后一段。API key、token 和密码会尽量遮蔽，但格式特殊的密钥不保证能遮住。文件内容只存在快照仓库里。报告不会包含 `.env` 这类文件，`--share` 则完全不含提示、命令、输出和 diff，但文件路径和时间仍然保留。
 
-Zerostel 把项目视为不可信：文件名不会变成 git 选项或匹配模式、链接不会让快照或恢复跑出项目、项目文件夹里的程序不会被当成 git 或 shell 运行、输出里的终端控制码会被过滤。`zerostel ui` 只监听 127.0.0.1，而且需要它打印的链接里的随机 token。发现问题请看 [SECURITY.md](SECURITY.md)。
+Zerostel 把项目视为不可信：文件名不会变成 git 选项或匹配模式、链接不会让快照或恢复跑出项目、项目文件夹里的程序不会被当成 git 或 shell 运行、输出里的终端控制码会被过滤。`zerostel ui` 只监听 127.0.0.1，而且需要它打印的链接里的随机 token。[docs/security-model.md](docs/security-model.md)（英文）说明 Zerostel 保护什么、不保护什么；发现问题请看 [SECURITY.md](SECURITY.md)。
 
 ## 名字的由来
 

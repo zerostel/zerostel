@@ -338,6 +338,7 @@ Zerostel はプロジェクトを信頼しません。ファイル名が git の
 
 - **完了：** 7 つのエージェントの記録と巻き戻し、ゼロ地点、Web 表示、共有できるレポート、検証できるログ、ガードレール、MCP サーバー、プロジェクト外のファイルの監視。
 - **次：** 鍵がなくても誰でも検証できる署名付きレポート、Zerostel ゲートウェイを通した他の MCP サーバー呼び出しの記録、テスト出力を解析してどのテストが壊れたかを示す機能、実験的なエージェントの実機検証。
+- **募集中：** [macOS と Linux での動作報告](https://github.com/zerostel/zerostel/issues/4)、および [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ラベルの issue。
 
 ## トラブルシューティング
 

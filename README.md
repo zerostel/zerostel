@@ -338,6 +338,7 @@ The first snapshot reads every file once; it starts as the session opens and the
 
 - **Done:** recording and rewinding seven agents, point zero, web UI, shareable reports, verifiable logs, guardrails, MCP server, watched files outside the project.
 - **Next:** signed reports anyone can verify without your key; recording calls to other MCP servers through a Zerostel gateway; test-output parsing to say which test broke; real-session validation of the experimental agents.
+- **Help wanted:** [test reports from macOS and Linux](https://github.com/zerostel/zerostel/issues/4), and anything labeled [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ## Troubleshooting
 

@@ -338,6 +338,7 @@ Zerostel 把專案視為不可信任：檔名不會變成 git 選項或比對樣
 
 - **已完成：** 七個 agent 的記錄與倒帶、零點、網頁介面、可分享的報告、可驗證的紀錄、防護規則、MCP server、監看專案外的檔案。
 - **接下來：** 不需要你的金鑰也能驗證的簽章報告；透過 Zerostel 閘道記錄其他 MCP server 的呼叫；解析測試輸出，指出是哪個測試壞掉；實驗性 agent 的真機驗證。
+- **歡迎幫忙：** [macOS 和 Linux 的實測回報](https://github.com/zerostel/zerostel/issues/4)，以及標了 [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) 的 issue。
 
 ## 疑難排解
 

@@ -338,6 +338,7 @@ Zerostel 把项目视为不可信：文件名不会变成 git 选项或匹配模
 
 - **已完成：** 七个 agent 的记录与回退、零点、网页界面、可分享的报告、可验证的记录、防护规则、MCP server、监视项目外的文件。
 - **接下来：** 不需要你的密钥也能验证的签名报告；通过 Zerostel 网关记录其他 MCP server 的调用；解析测试输出，指出是哪个测试坏了；实验性 agent 的真机验证。
+- **欢迎帮忙：** [macOS 和 Linux 的实测反馈](https://github.com/zerostel/zerostel/issues/4)，以及标了 [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) 的 issue。
 
 ## 疑难排解
 

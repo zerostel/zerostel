@@ -11,6 +11,8 @@
 <link rel="alternate" hreflang="en" href="https://zerostel.com/">
 <link rel="alternate" hreflang="zh-Hant" href="https://zerostel.com/zh-tw/">
 <link rel="alternate" hreflang="x-default" href="https://zerostel.com/">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/assets/icon-256.png">
 <meta property="og:type" content="website">
@@ -140,15 +142,15 @@
           <h4>npm <small>any OS</small></h4>
           <div class="plug"><code>npx zerostel install</code><button class="copy" type="button" data-copy="npx zerostel install" data-done-label="Copied" aria-label="Copy: npm">Copy</button></div>
         </li>
-        <li class="port">
+        <li class="port soon">
           <span class="jack" aria-hidden="true"></span>
           <h4>Homebrew <small>macOS · Linux</small></h4>
-          <div class="plug"><code>brew install zerostel/tap/zerostel</code><button class="copy" type="button" data-copy="brew install zerostel/tap/zerostel" data-done-label="Copied" aria-label="Copy: Homebrew">Copy</button></div>
+          <div class="plug"><code>brew install zerostel/tap/zerostel</code><a class="soon-tag" href="https://github.com/zerostel/zerostel/issues/6">coming soon</a></div>
         </li>
-        <li class="port">
+        <li class="port soon">
           <span class="jack" aria-hidden="true"></span>
           <h4>Scoop <small>Windows</small></h4>
-          <div class="plug"><code>scoop install zerostel</code><button class="copy" type="button" data-copy="scoop install zerostel" data-done-label="Copied" aria-label="Copy: Scoop">Copy</button></div>
+          <div class="plug"><code>scoop install zerostel</code><a class="soon-tag" href="https://github.com/zerostel/zerostel/issues/6">coming soon</a></div>
         </li>
         <li class="port">
           <span class="jack" aria-hidden="true"></span>
@@ -285,7 +287,7 @@
         <li><b>Never runs what a repo ships.</b> git and other helpers are found by absolute path, skipping the project folder and any <code>node_modules</code>.</li>
         <li><b>Rewinds stay inside the lines.</b> No following symlinks or junctions out of the project; nothing deleted that isn't backed up.</li>
         <li><b>Reviewed, and honest about limits.</b> Reviewed in several rounds, by more than one reviewer; findings are fixed with a regression test. The <a href="https://github.com/zerostel/zerostel/blob/main/docs/security-model.md">security model</a> says what it protects and what it doesn't.</li>
-        <li><b>Releases you can trace.</b> npm packages are built and published by CI with provenance, and the package refuses to publish without it.</li>
+        <li><b>Releases you can trace.</b> Every npm release is built by CI with provenance, holds no stored token, and goes live only after a maintainer approves it with two-factor authentication.</li>
       </ul>
     </div>
     <figure class="term" aria-label="Guardrails in action">
@@ -323,6 +325,7 @@
         </tbody>
       </table>
     </div>
+    <p class="small">Longer read: <a href="/blog/agent-checkpoints/">What your coding agent's checkpoints can't bring back</a>, with the incidents behind this table.</p>
   </div>
 </section>
 
@@ -363,6 +366,7 @@
     <nav aria-label="Footer">
       <a href="https://github.com/zerostel/zerostel">GitHub</a>
       <a href="https://github.com/zerostel/zerostel/blob/main/SECURITY.md">Security</a>
+      <a href="/blog/agent-checkpoints/">Blog</a>
       <a href="/.well-known/security.txt">security.txt</a>
       <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>
     </nav>

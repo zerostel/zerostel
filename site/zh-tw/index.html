@@ -11,6 +11,8 @@
 <link rel="alternate" hreflang="en" href="https://zerostel.com/">
 <link rel="alternate" hreflang="zh-Hant" href="https://zerostel.com/zh-tw/">
 <link rel="alternate" hreflang="x-default" href="https://zerostel.com/">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/assets/icon-256.png">
 <meta property="og:type" content="website">
@@ -140,15 +142,15 @@
           <h4>npm <small>各系統</small></h4>
           <div class="plug"><code>npx zerostel install</code><button class="copy" type="button" data-copy="npx zerostel install" data-done-label="已複製" aria-label="複製: npm">複製</button></div>
         </li>
-        <li class="port">
+        <li class="port soon">
           <span class="jack" aria-hidden="true"></span>
           <h4>Homebrew <small>macOS · Linux</small></h4>
-          <div class="plug"><code>brew install zerostel/tap/zerostel</code><button class="copy" type="button" data-copy="brew install zerostel/tap/zerostel" data-done-label="已複製" aria-label="複製: Homebrew">複製</button></div>
+          <div class="plug"><code>brew install zerostel/tap/zerostel</code><a class="soon-tag" href="https://github.com/zerostel/zerostel/issues/6">即將推出</a></div>
         </li>
-        <li class="port">
+        <li class="port soon">
           <span class="jack" aria-hidden="true"></span>
           <h4>Scoop <small>Windows</small></h4>
-          <div class="plug"><code>scoop install zerostel</code><button class="copy" type="button" data-copy="scoop install zerostel" data-done-label="已複製" aria-label="複製: Scoop">複製</button></div>
+          <div class="plug"><code>scoop install zerostel</code><a class="soon-tag" href="https://github.com/zerostel/zerostel/issues/6">即將推出</a></div>
         </li>
         <li class="port">
           <span class="jack" aria-hidden="true"></span>
@@ -285,7 +287,7 @@
         <li><b>絕不執行 repo 附帶的程式。</b>git 和其他輔助程式一律用絕對路徑找，跳過專案資料夾和任何 <code>node_modules</code>。</li>
         <li><b>倒帶不會越界。</b>不跟著 symlink 或 junction 跑出專案；沒有備份的東西絕不刪除。</li>
         <li><b>反覆審查，也坦白說明限制。</b>經過多輪、不只一方的資安審查，找到的問題都修正並加上回歸測試。<a href="https://github.com/zerostel/zerostel/blob/main/docs/security-model.md">安全模型</a>寫清楚它保護什麼、不保護什麼。</li>
-        <li><b>發布過程可追溯。</b>npm 套件由 CI 建置並帶 provenance 發布；沒有 provenance 的話，套件本身會拒絕發布。</li>
+        <li><b>發布過程可追溯。</b>每個 npm 版本都由 CI 建置並附上 provenance，不存放任何 token，而且要維護者用雙重驗證核准後才會上線。</li>
       </ul>
     </div>
     <figure class="term" aria-label="防護規則實際運作">
@@ -323,6 +325,7 @@
         </tbody>
       </table>
     </div>
+    <p class="small">延伸閱讀（英文）：<a href="/blog/agent-checkpoints/" hreflang="en">What your coding agent's checkpoints can't bring back</a>，這張表背後的真實事故。</p>
   </div>
 </section>
 
@@ -363,6 +366,7 @@
     <nav aria-label="頁尾">
       <a href="https://github.com/zerostel/zerostel">GitHub</a>
       <a href="https://github.com/zerostel/zerostel/blob/main/SECURITY.md">資安回報</a>
+      <a href="/blog/agent-checkpoints/" hreflang="en">文章</a>
       <a href="/.well-known/security.txt">security.txt</a>
       <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>
     </nav>

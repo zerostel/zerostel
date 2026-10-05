@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>What your coding agent's checkpoints can't bring back · Zerostel</title>
+<meta name="description" content="Claude Code, Codex, Cursor, Copilot, Cline and opencode all have some form of undo. They differ more than you'd think, and a few have already deleted real work.">
+<link rel="canonical" href="https://zerostel.com/blog/agent-checkpoints/">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/assets/icon-256.png">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Zerostel">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="What your coding agent's checkpoints can't bring back">
+<meta property="og:description" content="Every agent's undo works differently, and a few have already deleted real work. What each one restores, and what to do about it.">
+<meta property="og:url" content="https://zerostel.com/blog/agent-checkpoints/">
+<meta property="og:image" content="https://zerostel.com/assets/demo-undo.jpg">
+<meta property="og:image:width" content="1920">
+<meta property="og:image:height" content="1158">
+<meta property="og:image:alt" content="A terminal showing an agent session in which rm -rf deleted src/legacy and the tests failed.">
+<meta property="article:published_time" content="2026-10-05">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image:alt" content="A terminal showing an agent session in which rm -rf deleted src/legacy and the tests failed.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","headline":"What your coding agent's checkpoints can't bring back","description":"Every agent's undo works differently, and a few have already deleted real work. What each one restores, and what to do about it.","datePublished":"2026-10-05","dateModified":"2026-10-05","inLanguage":"en","mainEntityOfPage":"https://zerostel.com/blog/agent-checkpoints/","image":"https://zerostel.com/assets/demo-undo.jpg","author":{"@type":"Organization","name":"Zerostel","url":"https://zerostel.com/"},"publisher":{"@type":"Organization","name":"Zerostel","url":"https://zerostel.com/","logo":{"@type":"ImageObject","url":"https://zerostel.com/assets/icon-256.png"}}}
+</script>
+<meta name="theme-color" content="#19242d">
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Zerostel home">
+      <img class="logo-light" src="/assets/logo-light.svg" alt="Zerostel" width="114" height="26">
+      <img class="logo-dark" src="/assets/logo-dark.svg" alt="Zerostel" width="114" height="26">
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a class="hide-sm" href="/#how">How it works</a>
+      <a class="hide-sm" href="/#security">Security</a>
+      <a class="gh" href="https://github.com/zerostel/zerostel">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="post">
+  <header>
+    <span class="ch" aria-hidden="true">Field notes · October 2026</span>
+    <h1>What your coding agent's checkpoints can't bring back</h1>
+    <p class="lede">You ask an agent to clean up some old code. It edits a file, runs <code>rm -rf src/legacy</code>, and the tests go red. No problem, you think: there's a rewind button.</p>
+    <p class="meta">5 minute read · <time datetime="2026-10-05">5 October 2026</time></p>
+  </header>
+
+  <p>Whether that button brings <code>src/legacy</code> back depends on which agent you're using, and on details most of us never read. I went through the source code and docs of a dozen agents to find out. This is what I found.</p>
+
+  <h2 id="two-ways">Two ways to take a checkpoint</h2>
+  <p>Every agent's undo falls into one of two families.</p>
+  <p><b>Track your own edits.</b> The agent remembers the files its own edit tools touched, and puts those back. Claude Code's <code>/rewind</code>, Cursor, VS Code Copilot, Gemini CLI's <code>/rewind</code> and Aider work this way. It's cheap and fast, and it has one big hole: anything a <em>shell command</em> changed isn't tracked. <code>rm -rf</code>, <code>git checkout .</code>, a migration, a build script, <code>sed -i</code>: none of it comes back.</p>
+  <p><b>Snapshot the whole tree.</b> The agent takes a git snapshot of the working tree, before or after each step. Cline, opencode and Kilo, Zed, and Gemini CLI's <code>/restore</code> work this way. These <em>can</em> undo what a shell command did, as long as the files weren't ignored by <code>.gitignore</code>.</p>
+  <p>Neither family backs up ignored files. Your <code>.env</code> is ignored, so no agent will bring it back. And most whole-tree snapshots need the project to be a git repository in the first place.</p>
+  <div class="scroll">
+    <table class="table">
+      <thead><tr><th scope="col">Agent</th><th scope="col">How</th><th scope="col">Undoes shell changes</th><th scope="col">Without a git repo</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Claude Code <code>/rewind</code></th><td>tracks its edit tools</td><td class="no">no (documented)</td><td>yes</td></tr>
+        <tr><th scope="row">Cursor</th><td>tracks its edit tools, per prompt</td><td class="no">no</td><td>yes</td></tr>
+        <tr><th scope="row">Codex CLI</th><td>no file undo (<code>/undo</code> was removed in 2026)</td><td class="no">no</td><td>—</td></tr>
+        <tr><th scope="row">Cline</th><td>commits the whole tree after each tool call</td><td class="yes">yes</td><td>yes</td></tr>
+        <tr><th scope="row">opencode, Kilo</th><td><code>write-tree</code> before and after each step</td><td class="yes">yes</td><td class="no">no</td></tr>
+        <tr><th scope="row">Gemini CLI <code>/restore</code></th><td>whole tree before edit tools (off by default)</td><td>indirectly</td><td>yes</td></tr>
+        <tr><th scope="row">Aider <code>/undo</code></th><td>commits to your git</td><td class="no">no</td><td class="no">no</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The full table, with Zed, VS Code Copilot, Copilot CLI and where each one keeps its snapshots, is in <a href="https://github.com/zerostel/zerostel/blob/main/docs/comparison.md">the comparison</a>, with a source for every row.</p>
+
+  <h2 id="gone-wrong">Five ways it has already gone wrong</h2>
+  <p>These are all real reports from the agents' own issue trackers.</p>
+  <p><b>A restore that destroys.</b> Copilot CLI's checkpoint restore ran <code>git clean -fd</code> on the repository. It deleted every untracked file, including over a gigabyte of evaluation output that a script had produced and the agent had only read (<a href="https://github.com/github/copilot-cli/issues/1675">github/copilot-cli#1675</a>). Cline had a variant of the same problem when <code>.gitignore</code> itself had uncommitted changes (<a href="https://github.com/cline/cline/issues/14367">cline/cline#14367</a>). The undo was the thing that lost the data.</p>
+  <p><b>A rewind that silently does nothing.</b> In auto mode, Claude Code is told to make file changes through Bash. Bash edits aren't tracked, so <code>/rewind</code> reports success and leaves every change on disk. The reporter only noticed later, after the agent had carried on building on code they thought they'd rejected (<a href="https://github.com/anthropics/claude-code/issues/87575">anthropics/claude-code#87575</a>).</p>
+  <p><b>A <code>.git</code> that fills up.</b> Codex Desktop stores checkpoint snapshots as refs inside <em>your</em> repository. On a project with large files, one user found 102 GB of orphaned objects in <code>.git/objects</code> (<a href="https://github.com/openai/codex/issues/29388">openai/codex#29388</a>).</p>
+  <p><b>Snapshots collected as garbage.</b> opencode prunes its snapshot store with <code>git gc --prune=7.days</code>, which can delete objects that older, still-resumable sessions need for diffs and undo. It has already broken review diffs (<a href="https://github.com/anomalyco/opencode/issues/36093">anomalyco/opencode#36093</a>).</p>
+  <p><b>A checkpoint that stalls every turn.</b> Snapshotting a whole large repository isn't free: one report describes about 90 seconds of blocking delay on every turn (<a href="https://github.com/cline/cline/issues/13131">cline/cline#13131</a>).</p>
+  <p>None of this means these agents are careless. Checkpointing is genuinely hard: you're racing an agent that can run any command, in a folder full of things you didn't ask to be tracked.</p>
+
+  <h2 id="what-helps">What helps, whatever you use</h2>
+  <ul>
+    <li><b>Commit before you hand over.</b> A commit, or <code>git stash</code>, before a long agent task is the cheapest insurance there is.</li>
+    <li><b>One worktree per agent.</b> If two agents, or you and an agent, work in the same folder, an undo in one rolls back the other.</li>
+    <li><b>Check after a rewind.</b> Run <code>git status</code>. A rewind that reports success isn't proof.</li>
+    <li><b>Back up what's ignored.</b> <code>.env</code>, local databases, data files: no agent snapshots them.</li>
+    <li><b>Don't start agents in your home folder.</b> A whole-tree snapshot of it is either skipped or enormous.</li>
+    <li><b>Know your agent's family.</b> If its undo only tracks its own edits, assume anything done through the shell is permanent.</li>
+    <li><b>Use a sandbox for code you don't trust.</b> Undo puts files back. It doesn't undo network requests, deployments or database writes.</li>
+  </ul>
+
+  <h2 id="zerostel">Why I built Zerostel</h2>
+  <p>I use more than one agent, and each one gave me a different answer to "what changed, and can I get it back?" So I built <a href="/">Zerostel</a>: a flight recorder and time machine that sits outside the agents.</p>
+  <figure>
+    <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="1920" height="1158">
+      <source src="/assets/demo-undo.mp4" type="video/mp4">
+    </video>
+    <figcaption>An agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel undo</code> brings it back. 25 seconds, no sound.</figcaption>
+  </figure>
+  <p>It hooks into Claude Code, Codex, Cursor, Copilot CLI, Gemini CLI, Antigravity and opencode, and takes a snapshot before and after every tool call that can change files, shell commands included, into a separate shadow repository. It never touches your <code>.git</code>, backs up small ignored files like <code>.env</code>, and works without a git repo. Before a rewind it snapshots the current state, so every rewind can itself be undone, and it only removes files it holds a copy of. It also keeps a timeline you can read, guardrails that block or ask before a tool runs, and a log that shows if it was edited.</p>
+  <p>It has limits too, and <a href="https://github.com/zerostel/zerostel#limits">they're written down</a>: it isn't a sandbox, it only restores states it captured, and it can't rewind the agent's conversation.</p>
+
+  <section class="try" aria-labelledby="try-h">
+    <h2 id="try-h">Try it in thirty seconds</h2>
+    <p>No agent and no real project needed: it makes a throwaway one and plays one agent turn into it.</p>
+    <div class="install">
+      <span class="prompt">$</span>
+      <code>npx zerostel demo</code>
+      <button class="copy" type="button" data-copy="npx zerostel demo" aria-label="Copy the demo command">Copy</button>
+    </div>
+    <p class="small">Agents change quickly. If something here is out of date, <a href="https://github.com/zerostel/zerostel/issues">open an issue</a> and I'll fix it.</p>
+  </section>
+</article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Zerostel · Apache-2.0</span>
+    <nav aria-label="Footer">
+      <a href="/">Home</a>
+      <a href="https://github.com/zerostel/zerostel">GitHub</a>
+      <a href="https://github.com/zerostel/zerostel/blob/main/SECURITY.md">Security</a>
+      <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -315,3 +315,71 @@ footer a { color: var(--muted); }
 
 /* anchors land below the sticky header */
 [id] { scroll-margin-top: 84px; }
+
+/* ---- scrolling plays the page like a recording (site.js adds .motion) ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .motion [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0s), transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0s); }
+  .motion [data-reveal].in { opacity: 1; transform: none; }
+  /* channel labels are written in, like a tape head passing */
+  .motion .ch[data-reveal] { transform: none; transition: none; }
+  .motion .ch[data-reveal].in { animation: ch-write 0.7s steps(20, end) var(--d, 0s) backwards; }
+  @keyframes ch-write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  /* the patch bay runs a signal check: each jack lights up once */
+  .motion .bay.in .jack { animation: jack-on 1.1s ease-out var(--d, 0s) backwards; }
+  @keyframes jack-on { 35% { border-color: var(--orange); box-shadow: 0 0 0 5px rgba(241, 101, 59, 0.22); } }
+  /* ticks are drawn after their line arrives */
+  .motion .checks li[data-reveal]::after { transform: rotate(45deg) scale(0); transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--d, 0s) + 0.3s); }
+  .motion .checks li[data-reveal].in::after { transform: rotate(45deg) scale(1); }
+  /* the guardrails terminal starts typing when it's seen, not on page load */
+  .motion .term:not(.in) .l { animation-play-state: paused; }
+}
+@media print { .motion [data-reveal] { opacity: 1 !important; transform: none !important; clip-path: none !important; } .tape, .progress { display: none !important; } }
+
+/* how far through the recording you are */
+.progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 7; pointer-events: none; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); background: linear-gradient(90deg, var(--orange-deep), var(--orange)); }
+
+/* the tape counter: REC while you read on, REW when you scroll back, press it for point zero */
+.tape { position: fixed; right: 18px; bottom: 18px; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 12px; min-height: 40px; border-radius: 999px; background: rgba(10, 17, 23, 0.9); border: 1px solid #24323d; color: #c3cdd5; font: 600 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); cursor: pointer; opacity: 0; transform: translateY(14px); pointer-events: none; transition: opacity 0.3s, transform 0.3s, border-color 0.2s; }
+.tape.on { opacity: 1; transform: none; pointer-events: auto; }
+.tape:hover { border-color: var(--orange); }
+.tape .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff6159; box-shadow: 0 0 8px #ff6159; flex: none; }
+.tape .mode { color: #ff8577; min-width: 3.2em; }
+.tape .tc { color: #eef2f5; font-variant-numeric: tabular-nums; }
+.tape .chn { color: var(--term-dim); max-width: 18em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tape .chn:empty { display: none; }
+.tape[data-mode="rew"] .dot, .tape[data-mode="zero"] .dot { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+.tape[data-mode="rew"] .mode, .tape[data-mode="zero"] .mode { color: var(--orange); }
+@media (prefers-reduced-motion: no-preference) { .tape[data-mode="rec"] .dot { animation: blink 1.6s steps(2, start) infinite; } }
+@media (prefers-reduced-motion: reduce) { .tape { transition: none; } }
+@media (max-width: 640px) { .tape { right: 12px; bottom: 12px; } .tape .chn { display: none; } }
+
+/* ---- articles (/blog/...) ---- */
+.post { max-width: 720px; margin: 0 auto; padding: 56px 20px 24px; }
+.post header { margin-bottom: 34px; }
+.post .meta { color: var(--muted); font-size: 14px; margin: 14px 0 0; }
+.post h1 { font-size: clamp(32px, 4.6vw, 46px); line-height: 1.1; margin: 16px 0 16px; }
+.post .lede { font-size: 20px; line-height: 1.6; color: var(--ink-2); margin: 0; }
+.post h2 { font-size: clamp(24px, 3vw, 30px); margin: 2.1em 0 0.6em; scroll-margin-top: 84px; }
+.post p, .post li { font-size: 18px; line-height: 1.75; color: var(--ink-2); }
+.post p { margin: 0 0 1.1em; }
+.post ul { padding-left: 1.2em; margin: 0 0 1.2em; }
+.post li { margin: 0.35em 0; }
+.post li::marker { color: var(--orange); }
+.post b, .post strong { color: var(--ink); }
+.post pre { background: var(--term-bg); color: var(--term-fg); border-radius: 12px; padding: 14px 18px; overflow-x: auto; font-size: 14px; }
+.post pre code { background: none; padding: 0; color: inherit; }
+.post .scroll { margin: 0 0 1.4em; }
+.post .table { font-size: 15px; }
+.post figure { margin: 0 0 1.6em; }
+.post video { display: block; width: 100%; height: auto; border-radius: var(--radius); background: var(--term-bg); border: 1px solid #22303b; box-shadow: 0 24px 60px -28px rgba(17, 26, 33, 0.6); }
+.post figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; }
+.post .try { margin: 2.4em 0 0; padding: 26px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); }
+.post .try h2 { margin-top: 0; }
+.post .try .install { margin-top: 16px; }
+
+/* not out yet: listed, but not offered as a command to copy */
+.port.soon { border-style: dashed; }
+.port.soon .jack { opacity: 0.45; }
+.port.soon code { color: var(--term-dim); }
+.plug .soon-tag { flex: none; font: 600 11px/1.6 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; color: var(--term-yellow); border: 1px solid #5a4a26; border-radius: 999px; padding: 3px 9px; text-decoration: none; overflow-wrap: normal; white-space: nowrap; }
+.plug .soon-tag:hover { border-color: var(--term-yellow); }

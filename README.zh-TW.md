@@ -345,10 +345,10 @@ Zerostel 把專案視為不可信任：檔名不會變成 git 選項或比對樣
 
 ## 參與開發
 
-支援新的 agent 只要在 [src/agents/adapters.ts](src/agents/adapters.ts) 加一個 adapter。請看 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [docs/architecture.md](docs/architecture.md)。
+問題和想法歡迎到 [Discussions](https://github.com/zerostel/zerostel/discussions) 討論。支援新的 agent 只要在 [src/agents/adapters.ts](src/agents/adapters.ts) 加一個 adapter。請看 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [docs/architecture.md](docs/architecture.md)。
 
 ```bash
-npm install && npm test && npm run smoke
+npm ci && npm test && npm run smoke
 ```
 
 ## 授權

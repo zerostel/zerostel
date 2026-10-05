@@ -1,0 +1,21 @@
+name: Feature request
+description: Something Zerostel should do that it doesn't yet
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The situation and what gets in the way today. A real example helps more than a proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you imagine it working, and anything you've tried instead.
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent, if it's about one
+      options: [any or none, Claude Code, Codex, Cursor, Copilot CLI, Gemini CLI, Antigravity, opencode, DeepSeek Harness, zerostel run, other]

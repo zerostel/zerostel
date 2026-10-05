@@ -345,10 +345,10 @@ Run `zerostel doctor`. It checks Node, git, each agent's hooks and version, the 
 
 ## Contributing
 
-Supporting a new agent means adding one adapter to [src/agents/adapters.ts](src/agents/adapters.ts). See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architecture.md).
+Questions and ideas are welcome in [Discussions](https://github.com/zerostel/zerostel/discussions). Supporting a new agent means adding one adapter to [src/agents/adapters.ts](src/agents/adapters.ts). See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architecture.md).
 
 ```bash
-npm install && npm test && npm run smoke
+npm ci && npm test && npm run smoke
 ```
 
 ## License

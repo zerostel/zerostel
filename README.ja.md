@@ -345,10 +345,10 @@ Zerostel はプロジェクトを信頼しません。ファイル名が git の
 
 ## コントリビュート
 
-新しいエージェントへの対応は、[src/agents/adapters.ts](src/agents/adapters.ts) にアダプターを 1 つ追加するだけです。[CONTRIBUTING.md](CONTRIBUTING.md) と [docs/architecture.md](docs/architecture.md) をご覧ください。
+質問やアイデアは [Discussions](https://github.com/zerostel/zerostel/discussions) へどうぞ。新しいエージェントへの対応は、[src/agents/adapters.ts](src/agents/adapters.ts) にアダプターを 1 つ追加するだけです。[CONTRIBUTING.md](CONTRIBUTING.md) と [docs/architecture.md](docs/architecture.md) をご覧ください。
 
 ```bash
-npm install && npm test && npm run smoke
+npm ci && npm test && npm run smoke
 ```
 
 ## ライセンス

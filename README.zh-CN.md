@@ -345,10 +345,10 @@ Zerostel 把项目视为不可信：文件名不会变成 git 选项或匹配模
 
 ## 参与开发
 
-支持新的 agent 只需要在 [src/agents/adapters.ts](src/agents/adapters.ts) 加一个 adapter。请看 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [docs/architecture.md](docs/architecture.md)。
+问题和想法欢迎到 [Discussions](https://github.com/zerostel/zerostel/discussions) 讨论。支持新的 agent 只需要在 [src/agents/adapters.ts](src/agents/adapters.ts) 加一个 adapter。请看 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [docs/architecture.md](docs/architecture.md)。
 
 ```bash
-npm install && npm test && npm run smoke
+npm ci && npm test && npm run smoke
 ```
 
 ## 许可证

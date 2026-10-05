@@ -8,7 +8,7 @@
 **任何 agent 出错，都能回到零点。**
 
 给 AI agent 的零信任：假设它一定会出错，记下每一步，把它动过的文件回退回去。
-AI 编程 agent 的行车记录仪加时光机，附带你自己定的防护规则，以及能验证是否被篡改的记录。
+AI 编程 agent 的行车记录仪加时光机：每一步都有记录，测试结果关联到它运行的那一版代码，有你自己定的防护规则，还能交接给下一个 agent 或人并让对方核对。
 
 [官网](https://zerostel.com) · [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -35,8 +35,10 @@ npx zerostel install
 
 ```bash
 zerostel log          # 一步一步看它做了什么
+zerostel checks       # 测试是在现在这版代码上通过的吗？
 zerostel undo         # 把文件恢复到 agent 上一轮开始之前
 zerostel rewind 0     # 或者一路回到零点：这个 session 开始的时候
+zerostel handoff      # 交给下一个 agent 或人接手需要知道的事
 zerostel ui           # 同样的事，在本地网页上点着操作
 ```
 
@@ -45,6 +47,7 @@ zerostel ui           # 同样的事，在本地网页上点着操作
 - **记录。** 每个提示、工具调用、命令、文件变更、耗时和 token 数，每个 session 一条时间线：在终端用 `zerostel log` 看，或用 `zerostel ui` 在本地网页看。
 - **回退。** 每次可能改文件的工具调用前后各拍一次快照，shell 命令也包括在内。可以撤销一个回合、回到任意一步，或一路回到零点；每次回退本身也能再撤销。
 - **防护。** 你自己定的规则，能在工具运行前拦下，或让 agent 先问你。所有 agent 共用同一套规则。
+- **核对与交接。** agent 跑的每个测试、类型检查和构建，都会关联到它当时运行的那一版代码；`zerostel checks` 分得清「现在这版通过」和「旧版通过、之后又改过」。`zerostel handoff` 把你的要求、当前状态和试过的做法交给下一个 agent 或人。
 - **验证与分享。** 用哈希链串起来的记录，被改过看得出来；单页报告，带分享用的隐私模式。
 - **只在本地。** 什么都不上传，`~/.zerostel` 只有你能读，也从不碰你的 `.git`。
 
@@ -60,8 +63,8 @@ Zerostel 用同一种方式记录每个支持的 agent：在每个可能改文�
 
 | | agent 自带的 checkpoint | commit／`git stash` | **Zerostel** |
 |---|---|---|---|
-| shell 命令造成的改动 | 看 agent | 只有你 commit 过的 | ✅ 项目内，加上你指定的文件 |
-| 回到指定的某一步 | 通常以提示为单位 | 以 commit 为单位 | ✅ 每次工具调用 |
+| shell 命令造成的改动 | 看 agent | 只有你 commit 或 stash 过的 | ✅ 项目内，加上你指定的文件 |
+| 回到指定的某一步 | 通常以提示为单位 | 以 commit 或 stash 为单位 | ✅ 每次工具调用 |
 | 命令、文件、token、时间的时间线 | 部分 | ❌ | ✅ |
 | 事后能验证记录是否被改过 | ❌ | ✅（commit 哈希） | ✅ |
 | 自定义规则：工具运行前拦下或先问你 | 各家不同 | ❌ | ✅ 所有 agent 用同一套规则 |
@@ -70,6 +73,18 @@ Zerostel 用同一种方式记录每个支持的 agent：在每个可能改文�
 | 可分享的工作报告 | ❌ | ❌ | ✅ |
 
 详细对比和来源：[docs/comparison.md](docs/comparison.md)。背后的真实事故：[What your coding agent's checkpoints can't bring back](https://zerostel.com/blog/agent-checkpoints/)（英文）。
+
+## 和其他工具比较
+
+各家 agent 一直在加自己的 checkpoint，也有不错的插件工具：[Turnback](https://github.com/MFaizR77/turnback)、[Turnal](https://github.com/AadiJo/turnal)、[bashback](https://github.com/trouties/bashback)、[logbook](https://github.com/sheeki03/logbook)、[codex-rewind](https://github.com/extracurricular-ai/codex-rewind)。Zerostel 多做的是：
+
+- **回退不会弄丢东西。** 没有完整备份的文件绝不删除或覆盖，每个文件在改动前一刻会再看一次，`--keep-others` 会保留其他 agent 或你之后改过的文件，而且每次回退（就算中途被打断）都能再撤销。
+- **不只项目文件夹。** 你指定监视的文件（例如 `~/.zshrc`）、Windows 用户环境变量，以及全局安装（会列出，并附上撤销用的命令）。
+- **证据关联到代码版本。** 测试和构建都记录它们运行的是哪一版代码，旧版通过、之后又改过的会标成过期；交接内容也能拿来和文件夹核对。
+- **所有 agent 共用一套规则。** 防护规则在工具运行前拦下或先问你，记录被改过也看得出来。
+- **agent 照原样用。** 直接挂在官方 agent 上，不用改版、不用包一层；零运行时依赖，什么都不上传。
+
+有些情况别的工具更合适：agent 自己的 `/rewind` 和 codex-rewind 会连同对话一起回退；Turnal 能用二分法找出是哪一轮让测试坏掉。[各工具逐一比较与出处](docs/alternatives.md)。
 
 ## 支持的 agent 和系统
 
@@ -88,6 +103,8 @@ Zerostel 用同一种方式记录每个支持的 agent：在每个可能改文�
 ¹ 在 Windows 上运行真正的 agent，只把模型换成按剧本回应的假模型：一个提示、写文件、运行命令、一个被规则挡下的调用、回合结束，再 undo。
 
 实验性的 agent 要指名才会安装，例如 `zerostel install --agent deepseek`。欢迎反馈真实使用的情况。
+
+各个 agent 通过 hook 上报的内容不完全一样（prompt、失败的命令、token）；详见[各 agent 会告诉 Zerostel 什么](docs/install.md#what-each-agent-tells-zerostel)。
 
 Zerostel 不在乎 agent 背后用的是哪个模型：Claude、GPT、Gemini、DeepSeek 或本地模型，记录方式都一样。
 
@@ -115,6 +132,7 @@ npm install -g zerostel       # 或者保留 zerostel 命令
 | [零信任](docs/zero-trust.md) | 每条原则，以及 Zerostel 如何做到 |
 | [安全模型](docs/security-model.md) | 它保护什么、不保护什么 |
 | [各 agent 的 checkpoint](docs/comparison.md) | 每个 agent 的 undo 能找回什么，附来源 |
+| [其他工具](docs/alternatives.md) | Turnback、Turnal、bashback 等工具逐一比较 |
 | [常见问题](docs/faq.md) | 速度、磁盘占用、git、jj、沙箱、token |
 
 以上文档为英文。出问题时先运行 `zerostel doctor`：它会检查 Node、git、每个 agent 的 hooks、你的配置和防护规则，输出可以直接贴到 issue 里。
@@ -125,7 +143,9 @@ npm install -g zerostel       # 或者保留 zerostel 命令
 - 一个 shell 命令内部没有中间状态：同一条命令里创建又删除的文件不会被看到。`zerostel run` 在文件稳定后才拍快照，短暂存在的文件也可能漏掉。
 - 项目外只有你在 `watch` 列出、而且位于主目录下的文件会拍快照。Windows 的用户环境变量（`HKCU\Environment`）只在会改它的命令前后读取，回退时恢复；它们的值存在你电脑上的 session 记录里，不会出现在报告中。全局包只会列出，并附上撤销命令。回退时，目标时间点还不存在的监视文件会保持原样。项目外的其他内容都不覆盖，但时间线仍会显示动过它的命令。
 - 以下内容不拍快照，存在时 `zerostel log` 会列出：被忽略的文件夹（`node_modules`、`dist/`、`.gitignore` 里的内容）、嵌套的 git 仓库和 submodule、链接文件夹（symlink、junction）、超过 `maxFileMB` 的新文件。
-- 在用户主目录或磁盘根目录启动的 agent 只有时间线，没有快照。
+- 在用户主目录、磁盘根目录或主目录的上层文件夹启动的 agent 只有时间线，没有快照。
+- 回退以整个文件为单位：加上 `--keep-others` 会保留别人改过的文件，但两个 agent 改了同一个文件时不会帮你合并。
+- agent 运行的测试或构建，只有在 agent 上报结果时才算通过；`zerostel check -- <命令>` 则一定知道结果。
 - 不区分大小写的文件系统（Windows、macOS 默认）上，只改大小写的重命名（例如 `readme.md` → `README.md`）不会被当作改动。
 - 在 WSL 里，放在 Windows 磁盘（`/mnt/c/...`）上的项目拍快照很慢，请放在 Linux 文件系统里。
 - 哈希串链能看出记录被“没有你的 `audit.key` 的东西”改过。用你自己账号的人可以读到密钥并整份重写记录；请把 `~/.zerostel/**` 放在 deny 规则里，让 agent 碰不到。
@@ -133,8 +153,8 @@ npm install -g zerostel       # 或者保留 zerostel 命令
 
 ## 开发方向
 
-- **已完成：** 七个 agent 的记录与回退、零点、网页界面、可分享的报告、可验证的记录、防护规则、MCP server、监视项目外的文件。
-- **接下来：** 不需要你的密钥也能验证的签名报告；通过 Zerostel 网关记录其他 MCP server 的调用；解析测试输出，指出是哪个测试坏了；实验性 agent 的真机验证。
+- **已完成：** 七个 agent 的记录与回退、零点、网页界面、可分享的报告、可验证的记录、防护规则、MCP server、监视项目外的文件、关联到代码版本的检查结果、交接、保留其他 session 修改的回退。
+- **接下来：** 不需要你的密钥也能验证的签名报告；通过 Zerostel 网关记录其他 MCP server 的调用；找出是哪一步让检查失败、是哪个测试坏了；实验性 agent 的真机验证。
 - **欢迎帮忙：** [macOS 和 Linux 的实测反馈](https://github.com/zerostel/zerostel/issues/4)，以及标了 [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) 的 issue。
 
 ## 参与开发

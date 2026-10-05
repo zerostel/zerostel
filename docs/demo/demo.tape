@@ -44,6 +44,12 @@ Sleep 300ms
 Enter
 Sleep 2s
 
+Type "npx zerostel checks"
+Sleep 300ms
+Enter
+Wait+Screen@30s /failing since/
+Sleep 3500ms
+
 Type "npx zerostel undo"
 Sleep 300ms
 Enter

@@ -7,7 +7,9 @@ import { parseArgs } from 'node:util';
 import { ackFor, ADAPTERS, getAdapter, type Adapter } from './agents/adapters.js';
 import { handleHook, type HookResult } from './agents/hooks.js';
 import { runWrapped } from './agents/run.js';
-import { applyRestore, rewindTarget, undoTarget, type Restored, type Target } from './commands/rewind.js';
+import { checkKind, checkName, checkStatuses, checksSummary, failingStreaks, renderChecks, runCommand } from './commands/checks.js';
+import { checkHandoff, handoffSession, renderHandoff } from './commands/handoff.js';
+import { applyRestore, changedByOthers, rewindTarget, undoTarget, type Restored, type Target } from './commands/rewind.js';
 import { agentPresent, applyPlan, defaultAgents, hookStatus, installBin, planInstall, planUninstall } from './install.js';
 import { doctor, find, projects, project, pruneCmd, sessionHeader, sessionJson } from './commands/more.js';
 import { completionScript, SHELLS } from './commands/completion.js';
@@ -19,15 +21,16 @@ import { renderReport } from './report/html.js';
 import { serveMcp } from './mcp/server.js';
 import { startUi } from './ui/server.js';
 import { listProjects, openProject, unsafeRoot, type Project } from './store/project.js';
-import { append, findSession, shortId, lastEventByAgent, listSessions, loadSession, newId, now, regressions, sessionRef, stepDuration, type Session } from './store/session.js';
-import { coverage, coverageNote, diffText, repoSize, snapshot, snapshotsPaused, takeBaseline } from './store/shadow.js';
+import { append, findSession, shortId, lastEventByAgent, listSessions, loadSession, newId, now, readState, regressions, sessionRef, stepDuration, writeState, type Session } from './store/session.js';
+import { baselineRunning, changes, coverage, coverageNote, diffText, head, repoSize, snapshot, snapshotsPaused, takeBaseline } from './store/shadow.js';
 import { gitVersion } from './util/git.js';
+import { withLock } from './util/lock.js';
 import { defaultCtx, displayPath, ensurePrivateDir, tilde, type Ctx } from './util/paths.js';
-import { ago, c, err, fmtBytes, fmtClock, fmtDate, fmtDuration, oneLine, out, selfCommand } from './util/term.js';
+import { ago, c, clean, err, fmtBytes, fmtClock, fmtDate, fmtDuration, oneLine, out, selfCommand } from './util/term.js';
 import { childEnv, findExecutable, neutralCwd } from './util/exec.js';
 import { writeFileAtomic } from './util/files.js';
 import { STANDALONE, VERSION } from './version.js';
-import { agentName, renderSessionRow, renderTimeline } from './view/timeline.js';
+import { agentName, protectionNote, renderSessionRow, renderTimeline } from './view/timeline.js';
 
 const HELP = `${c.bold('zerostel')} ${VERSION} — rewind any AI agent to point zero
 
@@ -48,6 +51,12 @@ ${c.bold('Go back')}
   zerostel undo               undo the agent's last turn (or your last rewind)
   zerostel rewind <n>         back to just before step n   (--after: just after it; 0: point zero)
   zerostel snapshot [-m msg]  save a checkpoint right now
+
+${c.bold('Check the work')}
+  zerostel checks             tests, type checks and builds this session ran: passed, failed, or out of date
+  zerostel check -- <cmd>     run one yourself and record it against the code as it is now
+  zerostel handoff [-o file]  what the next agent or person needs to carry on: asks, state, checks, dead ends
+  zerostel handoff check <f>  does the folder still match that handoff?
 
 ${c.bold('Share and check')}
   zerostel report [--open]    export the session as a single HTML page (-o to pick the file)
@@ -76,7 +85,7 @@ ${c.bold('Other')}
   zerostel completion <shell> tab completion for bash, zsh, fish or powershell
 
 Options: --session <id>  --project <id|path>  --agent <name|all>
-         -y/--yes  --dry-run  --only <path>  --json
+         -y/--yes  --dry-run  --only <path>  --keep-others  --json
          --share  --no-prompts  --no-output  --no-diffs   (report)
          --port <n>  --no-open                            (ui)
 
@@ -136,6 +145,7 @@ function printPlan(r: Restored): void {
   listFiles('bring back', r.created, c.green);
   listFiles('remove', r.deleted, c.red);
   if (r.home?.kept.length) out(c.dim(`  left as they are (they didn't exist then): ${r.home.kept.map(oneLine).join(', ')}`));
+  if (r.kept.length) out(c.dim(`  left as they are (--keep-others): ${r.kept.slice(0, 12).map(oneLine).join(', ')}${r.kept.length > 12 ? ', …' : ''}`));
   for (const f of [...r.failed, ...(r.home?.failed ?? [])]) out(c.yellow(`  ! ${oneLine(f.path)}: ${f.error}`));
   if (r.env?.length) out(`  ${c.yellow('environment'.padEnd(10))} ${r.env.join(', ')} ${c.dim('(Windows user variables; new terminals see the change)')}`);
   const auto = [...r.modified, ...r.created].filter((f) => AUTO_RUN.test(f));
@@ -180,7 +190,10 @@ async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flag
   if (flags.only?.some((o) => !o.trim())) fail('--only needs a path');
   const picked = flags.only?.map((o) => (path.relative(p.root, path.resolve(p.root, o)) === '' ? '' : displayPath(o, p.root, p.root).replace(/\/+$/, '')));
   const only = picked?.length && picked.every(Boolean) ? picked : undefined;
-  const plan = applyRestore(p, s.ref, t, { only, dryRun: true, ctx });
+  // files another session, or you outside the agent, changed since then
+  const others = changedByOthers(p, s, t);
+  const keep = flags['keep-others'] ? [...others.keys()] : undefined;
+  const plan = applyRestore(p, s.ref, t, { only, keep, dryRun: true, ctx });
   const total = plan.created.length + plan.modified.length + plan.deleted.length + (plan.home?.restored.length ?? 0) + (plan.env?.length ?? 0);
   packageNote(plan);
   const what = t.step ? `${t.step.type === 'prompt' ? '❯ ' : ''}${t.step.summary}` : '';
@@ -191,6 +204,11 @@ async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flag
     return;
   }
   printPlan(plan);
+  const clash = keep ? [] : [...plan.modified, ...plan.created, ...plan.deleted].filter((f) => others.has(f));
+  if (clash.length) {
+    out(c.yellow(`  ! changed since then by someone else, and this would take that back too: ${clash.slice(0, 6).map((f) => `${oneLine(f)} (${others.get(f)})`).join(', ')}${clash.length > 6 ? ', …' : ''}`));
+    out(c.dim('    --keep-others leaves those files as they are'));
+  }
   scopeNote(p, s, t);
   if (flags['dry-run']) {
     out(c.dim('\n  dry run: nothing was changed'));
@@ -200,7 +218,7 @@ async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flag
     out('Cancelled.');
     return;
   }
-  const res = applyRestore(p, s.ref, t, { only, ctx });
+  const res = applyRestore(p, s.ref, t, { only, keep, ctx });
   for (const f of res.failed) err(c.yellow(`  ! ${oneLine(f.path)}: ${f.error}`));
   out(res.failed.length ? c.yellow(`! Done, but ${res.failed.length} file${res.failed.length > 1 ? 's were' : ' was'} not restored (see above).`) : c.green('✓ Done.'));
   const z = selfCommand();
@@ -223,6 +241,7 @@ type Flags = {
   session?: string;
   yes?: boolean;
   'dry-run'?: boolean;
+  'keep-others'?: boolean;
   after?: boolean;
   only?: string[];
   changes?: boolean;
@@ -248,6 +267,7 @@ function parse(argv: string[]): { cmd: string; args: string[]; flags: Flags; res
       agent: { type: 'string' },
       yes: { type: 'boolean', short: 'y' },
       'dry-run': { type: 'boolean' },
+      'keep-others': { type: 'boolean' },
       after: { type: 'boolean' },
       only: { type: 'string', multiple: true },
       changes: { type: 'boolean' },
@@ -391,6 +411,15 @@ function status(ctx: Ctx): void {
   if (sessions.length) out(`                ${sessions.length} session${sessions.length > 1 ? 's' : ''} · ${fmtBytes(repoSize(p))} of snapshots`);
   const paused = snapshotsPaused(p);
   if (paused) out(c.yellow(`                ! snapshots paused for an hour: ${paused}`));
+  // read-only: looking must not create a store for the folder status runs in
+  if (!unsafe && sessions.length && !paused && fs.existsSync(path.join(p.repo.gitDir, 'HEAD')) && head(p) === null) {
+    out(c.yellow(baselineRunning(p) ? '                ! the first snapshot is still being taken: steps until it is done can\'t be rewound' : '                ! no snapshot yet: the first one is taken when an agent starts here'));
+  }
+  const latest = sessions.length ? loadSession(sessions[0]!) : null;
+  const note = latest && protectionNote(latest);
+  if (note) out(c.yellow(`                ! latest session: ${note}`));
+  const checks = latest && checksSummary(latest);
+  if (checks) out(`  checks        ${checks} in the latest session · zerostel checks says if they're still current`);
 }
 
 function showStep(s: Session, n: number): void {
@@ -561,6 +590,7 @@ export async function main(argv: string[]): Promise<void> {
         const between = r.changed.length ? `files changed at ${r.changed.slice(0, 8).map((x) => '#' + x.n).join(', ')}${r.changed.length > 8 ? '…' : ''}` : 'no file changes in between';
         out(c.yellow(`\n  ! #${r.failed.n} failed, the same command passed at #${r.passed.n}; ${between}`));
       }
+      for (const k of failingStreaks(s)) out(c.yellow(`\n  ! ${oneLine(k.name)} failed ${k.count} times in a row (#${k.from} to #${k.to}): the agent may be going in circles`));
       const gaps = coverageNote(coverage(p));
       if (gaps) out(c.yellow('\n  ! ' + gaps));
       out(c.dim(`\n  zerostel diff <n> · zerostel rewind <n> · zerostel undo · zerostel report`));
@@ -626,6 +656,89 @@ export async function main(argv: string[]): Promise<void> {
       const n = loadSession(ref).steps.filter((x) => x.n).length;
       out(c.green(`✓ Saved as step #${n}`) + c.dim(snap.created ? '' : ' (no changes since the last snapshot)') + c.dim(`  · go back later with zerostel rewind ${n}`));
       if (snap.incomplete) err(c.yellow(`! Some files couldn't be copied and keep an older copy (${snap.incomplete}); a rewind leaves them alone.`));
+      return;
+    }
+    case 'check': {
+      needGit();
+      if (!rest.length) fail('usage: zerostel check -- <command> [args...]   (a test, type check, linter or build)');
+      const p = project(ctx, flags);
+      const why = unsafeRoot(p.root, ctx);
+      if (why) fail(`refusing to snapshot ${why}; cd into a project first`);
+      const ref = findSession(p, flags.session) ?? sessionRef(p, 'manual', 'checkpoints');
+      const name = checkName(rest.join(' '));
+      // The code the check runs against, saved first so the result can be tied
+      // to it. Edits made since the session's last snapshot are recorded as
+      // such, as a hook would, so they don't vanish from the timeline.
+      const ranOn = withLock(ref.file + '.lock', () => {
+        const sha = snapshot(p, `before check: ${name}`).sha;
+        const st = readState(ref);
+        if (st.lastSnap && st.lastSnap !== sha) {
+          const files = changes(p, st.lastSnap, sha);
+          if (files.length) append(ref, { e: 'outside', ts: now(), id: newId(), from: st.lastSnap, to: sha, files });
+        }
+        st.lastSnap = sha;
+        writeState(ref, st);
+        return sha;
+      });
+      const r = await runCommand(rest, ctx.cwd);
+      withLock(ref.file + '.lock', () => {
+        append(ref, { e: 'check', ts: now(), id: newId(), name, kind: checkKind(rest.join(' ')) ?? 'test', snap: ranOn, ok: r.code === 0, by: 'zerostel', exit: r.code, durationMs: r.durationMs, output: r.output });
+        // files the check itself wrote (snapshots, generated code) show up as their own step;
+        // a hook that ran meanwhile has already recorded its part
+        const after = snapshot(p, `after check: ${name}`).sha;
+        const st = readState(ref);
+        const from = st.lastSnap ?? ranOn;
+        if (after !== from) {
+          const files = changes(p, from, after);
+          if (files.length) append(ref, { e: 'change', ts: now(), id: newId(), from, to: after, files });
+        }
+        st.lastSnap = after;
+        writeState(ref, st);
+      });
+      err(r.code === 0 ? c.green(`\n✓ ${name}: passed`) : c.red(`\n✗ ${name}: failed (exit ${r.code})`));
+      err(c.dim(`  recorded against the code as it is now · zerostel checks shows where every check stands`));
+      process.exit(r.code);
+    }
+    case 'handoff': {
+      needGit();
+      const p = project(ctx, flags);
+      if (args[0] === 'check' && !args[1]) fail('usage: zerostel handoff check <file>');
+      // a folder with nothing recorded gets no snapshot store just from asking
+      const s = flags.session ? session(p, flags.session) : (handoffSession(p) ?? session(p));
+      let current: string | null = null;
+      try {
+        if (!unsafeRoot(p.root, ctx)) current = snapshot(p, 'handoff').sha;
+      } catch {
+        // snapshots paused or not ready
+      }
+      if (args[0] === 'check') {
+        if (!current) fail("can't take a snapshot of this project to compare with");
+        const res = checkHandoff(p, fs.readFileSync(args[1]!, 'utf8'), current);
+        for (const line of res.lines) out(res.ok ? c.green(line) : line);
+        process.exit(res.ok ? 0 : 1);
+      }
+      const text = renderHandoff(p, s, current, { prompts: !flags['no-prompts'], version: VERSION });
+      // file names and commands can carry terminal escape codes
+      if (!flags.output) return void process.stdout.write(clean(text));
+      const file = path.resolve(flags.output);
+      writeFileAtomic(file, text, { projectRoot: p.root });
+      out(c.green(`✓ Handoff written to ${file}`));
+      out(c.dim('  It quotes your prompts; secrets in them are masked. Whoever picks it up can run zerostel handoff check <file> to see if the folder still matches.'));
+      return;
+    }
+    case 'checks': {
+      needGit();
+      const p = project(ctx, flags);
+      const s = session(p, flags.session);
+      let current: string | null = null;
+      try {
+        if (!unsafeRoot(p.root, ctx)) current = snapshot(p, 'checks').sha;
+      } catch {
+        // snapshots paused or not ready: results are shown without saying if they're out of date
+      }
+      if (flags.json) return out(JSON.stringify(checkStatuses(p, s, current), null, 2));
+      for (const line of renderChecks(p, s, current)) out(line);
+      out(c.dim(`\n  zerostel check -- <command> runs one yourself and records it against the code as it is now.`));
       return;
     }
     case 'run': {

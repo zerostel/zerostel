@@ -72,6 +72,7 @@ export function runDemo(ctx: Ctx): string {
   for (const r of regressions(s)) out(c.yellow(`\n    ! #${r.failed.n} failed, the same command passed at #${r.passed.n}; files changed at ${r.changed.map((x) => '#' + x.n).join(', ')}`));
   out(`\n${c.bold('Now try it')}`);
   out(`  cd ${/\s/.test(project) ? `"${project}"` : project}`);
+  out(`  ${z} checks          ${c.dim('# the tests: passed at #2, failing since')}`);
   out(`  ${z} undo            ${c.dim('# src/legacy comes back')}`);
   out(`  ${z} undo            ${c.dim('# run it again to undo the undo')}`);
   out(`  ${z} diff 5          ${c.dim('# exactly what step #5 deleted')}`);

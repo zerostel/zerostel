@@ -22,7 +22,11 @@ The first snapshot reads every file once; it starts as the session opens and the
 
 **Does undo reverse everything the agent did?** No. It puts captured files back: the project, and the files you listed under `watch`. Global packages a command installed or removed (npm, pip, Homebrew) show up as a step with the commands that would undo them; Zerostel lists them on rewind but never runs them. On Windows, user environment variables changed with `setx` and the like are put back. It doesn't undo network requests, deployments, database writes or changes to your real `.git`, and it doesn't rewind the agent's conversation. Rewind that in the agent too, or start a new session.
 
-**Can I undo one agent while another keeps working?** Not safely. An undo restores the whole project (or the paths you give `--only`), including changes another agent or you made in the meantime. Preview with `--dry-run`, and give agents that run at the same time separate worktrees.
+**Can I undo one agent while another keeps working?** Partly. An undo restores the whole project (or the paths you give `--only`), so the preview names every file another agent's session, or you outside the agent, changed since then, and `--keep-others` leaves those files as they are. A file both of them changed still goes back as a whole: Zerostel doesn't merge edits within a file. For agents that work at the same time, separate worktrees are still the safe choice.
+
+**How do I know the tests passed on the code as it is now?** `zerostel checks` lists every test, type check, linter and build the session ran, with the snapshot each one ran against. A pass on code that has changed since shows as out of date, and test files the session changed or deleted are flagged. `zerostel check -- npm test` runs one and records it against the current code.
+
+**How do I hand a task to another agent, or to a colleague?** `zerostel handoff -o handoff.md` writes what they need: your prompts, the files that differ, which checks still hold, what was tried and undone, and what isn't covered. Only your prompts in it are instructions; the rest is a record, and no tool output is copied in. `zerostel handoff check handoff.md` tells the next person whether the folder still matches. Agents can read it through the MCP server's `handoff` tool.
 
 **How much disk does it use?** Identical content is stored once and compressed. `zerostel status` shows the total, and `zerostel prune` drops old sessions.
 

@@ -5,6 +5,7 @@ import { handleHook } from '../src/agents/hooks.js';
 import { openProject } from '../src/store/project.js';
 import { findSession, loadSession } from '../src/store/session.js';
 import { BaselinePending, baselineRunning, needsBaseline, snapshot, takeBaseline, trackedPaths } from '../src/store/shadow.js';
+import { renderTimeline } from '../src/view/timeline.js';
 import { sandbox, type Sandbox } from './helpers.js';
 
 // A big project's first snapshot can take minutes (on Windows, a virus
@@ -43,12 +44,16 @@ describe('first snapshot', () => {
     expect([...trackedPaths(p, done.sha)].filter((f) => f.startsWith('src/'))).toHaveLength(60);
   });
 
-  it("doesn't race a worker that is already at it", () => {
+  it('helps a worker that is already at it, for a moment only', () => {
     const p = openProject(sb.project, sb.ctx);
     needsBaseline(p);
     fs.writeFileSync(marker(p), JSON.stringify({ pid: process.pid, at: Date.now() }));
     expect(baselineRunning(p)).toBe(true);
-    expect(() => snapshot(p, 'first')).toThrow(BaselinePending);
+    // no time to help: the worker carries on alone
+    expect(() => snapshot(p, 'first', { firstBudgetMs: 0 })).toThrow(BaselinePending);
+    // a small project: a hook's moment of help finishes it
+    expect(snapshot(p, 'first').created).toBe(true);
+    expect(needsBaseline(p)).toBe(false);
     // a marker from a process that's gone, or from long ago, doesn't count
     fs.writeFileSync(marker(p), JSON.stringify({ pid: process.pid, at: Date.now() - 31 * 60_000 }));
     expect(baselineRunning(p)).toBe(false);
@@ -60,7 +65,7 @@ describe('first snapshot', () => {
     const ev = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'b1', cwd: sb.project, ...e }, sb.ctx, undefined, { startBaseline });
     ev({ hook_event_name: 'SessionStart', source: 'startup' });
     expect(started).toEqual([openProject(sb.project, sb.ctx).root]);
-    // the worker is busy: hooks don't wait for it, and the steps are still there
+    // the worker has only just started: the prompt right after still gets its snapshot
     const p = openProject(sb.project, sb.ctx);
     fs.writeFileSync(marker(p), JSON.stringify({ pid: process.pid, at: Date.now() }));
     ev({ hook_event_name: 'UserPromptSubmit', prompt: 'go' });
@@ -68,6 +73,21 @@ describe('first snapshot', () => {
     expect(started).toHaveLength(1);
     const s = loadSession(findSession(openProject(sb.project, sb.ctx), 'b1')!);
     expect(s.steps.map((x) => x.type)).toEqual(['prompt', 'tool']);
-    expect(s.steps[0]!.before).toBeUndefined();
+    expect(s.steps[0]!.before).toBeDefined();
+    expect(s.steps[0]!.nosnap).toBeUndefined();
+  });
+
+  it('says which steps have no snapshot, and why', () => {
+    const ev = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'b2', cwd: sb.project, ...e }, sb.ctx);
+    const p = openProject(sb.project, sb.ctx);
+    // snapshots paused (a project that took too long, say)
+    needsBaseline(p);
+    fs.writeFileSync(path.join(p.dir, 'paused.json'), JSON.stringify({ at: Date.now(), reason: 'snapshotting took longer than 20s' }));
+    ev({ hook_event_name: 'UserPromptSubmit', prompt: 'go' });
+    ev({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'b', tool_input: { command: 'rm -rf src' } });
+    const s = loadSession(findSession(p, 'b2')!);
+    expect(s.steps.map((x) => x.nosnap)).toEqual(['snapshotting took longer than 20s', 'snapshotting took longer than 20s']);
+    const text = renderTimeline(s, { width: 120 }).join('\n');
+    expect(text).toMatch(/No step has a snapshot: snapshotting took longer than 20s/);
   });
 });

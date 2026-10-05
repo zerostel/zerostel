@@ -1,6 +1,7 @@
 import { FAVICON } from '../brand.js';
 import { redact } from '../detect/secrets.js';
 import type { Project } from '../store/project.js';
+import { checkStatuses } from '../commands/checks.js';
 import { verify } from '../store/audit.js';
 import { regressions, stepDuration, summarize, type Session, type Step } from '../store/session.js';
 import { changes, coverage, coverageNote, diffText } from '../store/shadow.js';
@@ -77,6 +78,8 @@ function badge(st: Step): string {
 // was; file paths, tool names and counts are kept.
 function shareLabel(st: Step): string {
   if (st.type === 'snapshot') return 'Snapshot';
+  // its summary is the command: the shared version names the kind only
+  if (st.type === 'check') return `Check (${st.check?.kind ?? 'check'})`;
   if (st.type === 'guard') return `${st.guard === 'deny' ? 'Blocked' : 'Asked first'}: ${st.tool ?? 'tool call'}`;
   if (st.type !== 'tool') return st.summary;
   switch (st.kind) {
@@ -215,6 +218,19 @@ export function renderReport(p: Project, s: Session, opts: ReportOpts = {}): str
         })
         .join('')}</ul></div>`
     : '';
+  // tests and builds, and whether the code changed after they ran (up to the end of the session)
+  const last = [...s.steps].reverse().find((x) => x.after ?? x.before);
+  const checks = checkStatuses(p, s, last?.after ?? last?.before ?? null);
+  const checksHtml = checks.length
+    ? `<div class="regress"><b>Checks</b>, as the session left the code<ul>${checks
+        .map((st) => {
+          const what = share ? esc(st.kind) : `<code>${esc(redact(st.name))}</code>`;
+          const result = st.latest.ok === true ? 'passed' : st.latest.ok === false ? '<span class="fail">failed</span>' : 'ran, result not reported by the agent';
+          const fresh = st.freshness.state === 'current' ? '; nothing changed after it' : st.freshness.state === 'stale' ? `; <span class="warn">out of date</span>: ${plural(st.freshness.files.length, 'file')} changed after it ran` : '';
+          return `<li>${what}: ${result} at <a href="#s${st.latest.n}">#${st.latest.n}</a>${fresh}.</li>`;
+        })
+        .join('')}</ul></div>`
+    : '';
   const passedAt = new Map(regs.map((r) => [r.failed.n, r.passed.n]));
   const guarded = s.steps.filter((x) => x.type === 'guard');
   const guardHtml = guarded.length
@@ -267,6 +283,7 @@ h1{font-size:22px;margin:4px 0 6px;overflow-wrap:anywhere}.sub{color:var(--muted
 ${gapsHtml}
 ${alert}
 ${regsHtml}
+${checksHtml}
 ${guardHtml}
 <section>
 ${steps}

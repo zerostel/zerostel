@@ -1,7 +1,7 @@
 {
   "name": "zerostel",
   "displayName": "Zerostel",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Rewind any AI agent to point zero. Records every step, rewinds to any of them, enforces your guardrails and keeps a log you can verify. Local, no telemetry.",
   "author": {
     "name": "Zerostel",

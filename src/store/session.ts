@@ -5,6 +5,7 @@ import { appendChained } from './audit.js';
 import type { EnvChange, Manager, SysCapture } from '../system/probe.js';
 import type { Project } from './project.js';
 import type { FileChange } from './shadow.js';
+import type { CheckKind } from '../commands/checks.js';
 
 export interface Usage {
   input: number;
@@ -18,8 +19,9 @@ export const SESSION_VERSION = 2;
 
 export type Ev =
   | { e: 'start'; v?: number; ts: string; agent: string; session: string; cwd: string; transcript?: string; source?: string; command?: string }
-  | { e: 'prompt'; ts: string; id: string; text: string; snap?: string }
-  | { e: 'pre'; ts: string; id: string; tool: string; kind: string; summary: string; input?: unknown; snap?: string; subagent?: string }
+  // nosnap: why there is no snapshot before it (the first one still being taken, snapshots paused)
+  | { e: 'prompt'; ts: string; id: string; text: string; snap?: string; nosnap?: string }
+  | { e: 'pre'; ts: string; id: string; tool: string; kind: string; summary: string; input?: unknown; snap?: string; nosnap?: string; subagent?: string }
   | { e: 'post'; ts: string; id: string; ok: boolean; output?: string; snap?: string; files?: FileChange[]; durationMs?: number }
   | { e: 'outside'; ts: string; id: string; from: string; to: string; files: FileChange[] }
   | { e: 'change'; ts: string; id: string; from: string; to: string; files: FileChange[] }
@@ -36,6 +38,8 @@ export type Ev =
   // Windows user environment variables a command changed (values are kept here for rewinds, never shown)
   | { e: 'userenv'; ts: string; id: string; changes: EnvChange[] }
   | { e: 'hooks'; ts: string; id: string; file: string; change: 'removed' | 'disabled' }
+  // a test, type check, linter or build, and the snapshot of the code it ran against; step: the agent's tool call that ran it
+  | { e: 'check'; ts: string; id: string; name: string; kind: CheckKind; snap?: string; ok?: boolean; by: 'agent' | 'zerostel'; step?: string; exit?: number; durationMs?: number; output?: string }
   | { e: 'end'; ts: string; reason?: string; exit?: number | null };
 
 export interface SessionRef {
@@ -176,7 +180,7 @@ export function writeState(ref: SessionRef, s: SessionState): void {
 
 // ---- steps: what the timeline shows ----
 
-export type StepType = 'prompt' | 'tool' | 'outside' | 'change' | 'snapshot' | 'restore' | 'turn' | 'guard' | 'home' | 'packages' | 'userenv' | 'hooks';
+export type StepType = 'prompt' | 'tool' | 'outside' | 'change' | 'snapshot' | 'restore' | 'turn' | 'guard' | 'home' | 'packages' | 'userenv' | 'hooks' | 'check';
 
 export interface Step {
   n: number; // 1-based number shown to the user; 0 for turn markers
@@ -199,6 +203,10 @@ export interface Step {
   model?: string;
   subagent?: string; // which subagent made this tool call, if not the main agent
   guard?: 'deny' | 'ask'; // a policy rule blocked this tool call, or asked you first
+  /** why there is no snapshot from just before this step */
+  nosnap?: string;
+  /** a test, type check, linter or build this step ran, and what came of it */
+  check?: { name: string; kind: CheckKind; ok?: boolean; by: 'agent' | 'zerostel'; snap?: string };
   /** snapshots of the watched files outside the project, around this step */
   homeBefore?: string;
   homeAfter?: string;
@@ -240,10 +248,10 @@ export function loadSession(ref: SessionRef): Session {
         s.command ??= ev.command;
         break;
       case 'prompt':
-        s.steps.push({ n: 0, id: ev.id, type: 'prompt', ts: ev.ts, summary: firstLine(ev.text, 100), text: ev.text, before: ev.snap, after: ev.snap, files: [] });
+        s.steps.push({ n: 0, id: ev.id, type: 'prompt', ts: ev.ts, summary: firstLine(ev.text, 100), text: ev.text, before: ev.snap, after: ev.snap, files: [], nosnap: ev.nosnap });
         break;
       case 'pre': {
-        const st: Step = { n: 0, id: ev.id, type: 'tool', ts: ev.ts, tool: ev.tool, kind: ev.kind, summary: ev.summary, input: ev.input, before: ev.snap, files: [], subagent: ev.subagent };
+        const st: Step = { n: 0, id: ev.id, type: 'tool', ts: ev.ts, tool: ev.tool, kind: ev.kind, summary: ev.summary, input: ev.input, before: ev.snap, files: [], subagent: ev.subagent, nosnap: ev.nosnap };
         byId.set(ev.id, st);
         s.steps.push(st);
         break;
@@ -294,6 +302,13 @@ export function loadSession(ref: SessionRef): Session {
       case 'userenv':
         s.steps.push({ n: 0, id: ev.id, type: 'userenv', ts: ev.ts, summary: `User environment: ${ev.changes.map((c) => c.name).join(', ')}`, files: [] });
         break;
+      case 'check': {
+        const check = { name: ev.name, kind: ev.kind, ok: ev.ok, by: ev.by, snap: ev.snap };
+        const st = ev.step ? byId.get(ev.step) : undefined;
+        if (st) st.check = check;
+        else s.steps.push({ n: 0, id: ev.id, type: 'check', ts: ev.ts, summary: `check: ${ev.name}`, ok: ev.ok, output: ev.output, durationMs: ev.durationMs, before: ev.snap, after: ev.snap, files: [], check });
+        break;
+      }
       case 'hooks':
         s.steps.push({ n: 0, id: ev.id, type: 'hooks', ts: ev.ts, summary: `Zerostel's hooks were ${ev.change === 'removed' ? 'removed from' : 'switched off in'} ${ev.file}`, text: 'Recording can stop from the next time the agent starts. Run zerostel install to put the hooks back, and check who changed the file.', files: [] });
         break;

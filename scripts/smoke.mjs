@@ -149,6 +149,31 @@ try {
   const redo = z(['undo', '--yes']);
   check('a second undo undoes the rewind', redo.code === 0 && read('src/legacy/a.ts') === null && read('src/app.ts') === 'const x = 2;\n', redo.out);
 
+  // a check run through zerostel, tied to the code as it is
+  write('hand-edit.md', 'by hand\n');
+  const failing = z(['check', '--session', 'smoke-claude', '--', process.execPath, '-e', 'process.exit(3)']);
+  check('check passes the exit code through', failing.code === 3, failing.out);
+  const found = z(['find', 'hand-edit.md']);
+  check('an edit made before a check stays in the timeline', /Changes made outside the agent/.test(found.out), found.out);
+  fs.rmSync(path.join(proj, 'hand-edit.md'));
+  const passing = z(['check', '--session', 'smoke-claude', '--', process.execPath, '-e', 'console.log("ok")']);
+  check('check prints the command output', passing.code === 0 && /\bok\b/.test(passing.out), passing.out);
+  write('src/app.ts', 'const x = 9;\n');
+  const checks = z(['checks', '--session', 'smoke-claude']);
+  check('checks shows the failure, and the pass as out of date after an edit', /✗ failed/.test(checks.out) && /✓ passed[\s\S]*out of date: 1 file changed since \(src\/app\.ts\)/.test(checks.out), checks.out);
+  write('src/app.ts', 'const x = 2;\n');
+
+  // a handoff, and whether the folder still matches it
+  const handoffFile = path.join(tmp, 'handoff.md');
+  const ho = z(['handoff', '--session', 'smoke-claude', '-o', handoffFile]);
+  const hoText = fs.existsSync(handoffFile) ? fs.readFileSync(handoffFile, 'utf8') : '';
+  check('handoff quotes the prompt and lists the checks', ho.code === 0 && /remove legacy and change x/.test(hoText) && /## Checks/.test(hoText), ho.out + hoText);
+  check('handoff check: the folder matches', z(['handoff', 'check', handoffFile]).code === 0);
+  write('src/app.ts', 'const x = 7;\n');
+  const drift = z(['handoff', 'check', handoffFile]);
+  check('handoff check: a later edit shows', drift.code === 1 && /src\/app\.ts/.test(drift.out), drift.out);
+  write('src/app.ts', 'const x = 2;\n');
+
   // a Codex session through its hook command
   const cx = { session_id: 'smoke-codex', cwd: proj };
   const cxCalls = [];

@@ -32,7 +32,7 @@
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zerostel","url":"https://zerostel.com/zh-tw/","inLanguage":"zh-Hant","description":"給 AI coding agent 的飛航紀錄器和時光機：記錄每一步，把專案倒回任何一步，套用你自己的防護規則，並留下可驗證的紀錄。","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","license":"https://www.apache.org/licenses/LICENSE-2.0","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/zerostel/zerostel","https://www.npmjs.com/package/zerostel"]}
 </script>
 <meta name="theme-color" content="#19242d">
-<link rel="stylesheet" href="/assets/site.css?v=a10a8a7e37">
+<link rel="stylesheet" href="/assets/site.css?v=08f2cbd5d9">
 <script src="/assets/site.js?v=d48fee876f" defer></script>
 </head>
 <body>
@@ -230,7 +230,7 @@
       </video>
       <figcaption>25 秒，沒有聲音：agent 的一個回合用 <code>rm -rf</code> 刪掉 <code>src/legacy</code>、測試失敗；<code>npx zerostel undo</code> 把它救回來。</figcaption>
     </figure>
-    <div class="grid g4">
+    <div class="grid g3">
       <div class="card">
         <div class="icon" aria-hidden="true">●</div>
         <h3>記錄</h3>
@@ -248,6 +248,18 @@
         <h3>防護</h3>
         <p>你自己定的規則，會在工具執行前擋下它，或讓 agent 先問你。所有 agent 共用同一套。</p>
         <pre>zerostel policy init</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">◎</div>
+        <h3>核對</h3>
+        <p>agent 跑的每個測試、型別檢查和建置，都連到它當時跑的那一版程式。舊版通過、之後又改過的，會標成過期，不會算成完成。</p>
+        <pre>zerostel checks</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">⇄</div>
+        <h3>交接</h3>
+        <p>你的要求、目前程式的狀態、哪些檢查還有效、試過哪些做法，交給下一個 agent 或人；對方也能確認資料夾是否還一致。</p>
+        <pre>zerostel handoff</pre>
       </div>
       <div class="card">
         <div class="icon" aria-hidden="true">✓</div>
@@ -325,6 +337,7 @@
           <tr><th scope="row">回到指定的某一步</th><td>通常以提示為單位</td><td>以 commit 為單位</td><td class="yes">每次工具呼叫</td></tr>
           <tr><th scope="row">含 token 和時間的時間軸</th><td>部分</td><td class="no">沒有</td><td class="yes">有</td></tr>
           <tr><th scope="row">工具執行前套用你的規則</th><td>各家不同</td><td class="no">沒有</td><td class="yes">所有 agent 一致</td></tr>
+          <tr><th scope="row">測試是在這版程式上通過的嗎？</th><td class="no">不知道</td><td>每個 commit，前提是有跑 CI</td><td class="yes">每一步，過期的通過會標出來</td></tr>
           <tr><th scope="row">紀錄能看出被改過</th><td class="no">不行</td><td>可以</td><td class="yes">可以</td></tr>
           <tr><th scope="row">會動到你的 .git</th><td>有些會</td><td>會</td><td class="yes">絕不</td></tr>
           <tr><th scope="row">可分享的工作報告</th><td>看 agent</td><td class="no">沒有</td><td class="yes">有</td></tr>
@@ -332,6 +345,15 @@
       </table>
     </div>
     <p class="small">延伸閱讀（英文）：<a href="/blog/agent-checkpoints/" hreflang="en">What your coding agent's checkpoints can't bring back</a>，這張表背後的真實事故。</p>
+    <h3 class="also">和其他外掛工具相比</h3>
+    <p class="sub">Turnback、Turnal、bashback、logbook、codex-rewind 也都是不錯的工具。Zerostel 多做的是：</p>
+    <ul class="checks">
+      <li><b>倒帶不會弄丟東西。</b>沒有完整備份絕不刪除或覆寫，每個檔案改動前一刻再看一次，別人改過的檔案可用 <code>--keep-others</code> 保留，每次倒帶都能再撤銷。</li>
+      <li><b>不只專案資料夾。</b>監看的檔案（例如 <code>~/.zshrc</code>）、Windows 使用者環境變數，以及全域安裝（列出並附上撤銷指令）。</li>
+      <li><b>證據連到程式版本。</b>測試和建置都記錄它們跑的是哪一版程式：舊版通過、之後又改過的會標成過期。</li>
+      <li><b>一套規則，agent 照原樣用。</b>所有 agent 共用同一套防護規則，直接掛在官方 agent 上：不用改版、不用包一層、零執行期依賴。</li>
+    </ul>
+    <p class="small">有些情況別的工具更適合：agent 自己的 <code>/rewind</code> 和 codex-rewind 會連同對話一起倒回，Turnal 能用二分法找出是哪一輪讓測試壞掉。<a href="https://github.com/zerostel/zerostel/blob/main/docs/alternatives.md" hreflang="en">各工具逐一比較與出處（英文）</a>。</p>
   </div>
 </section>
 

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.2.0 (2026-10-05)
+
+Check the work, hand it over, and rewind without taking back other people's. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.
+
+Check the work
+
+- `zerostel checks`: every test, type check, linter and build a session ran, tied to the snapshot of the code it ran on. A pass on code that has changed since shows as out of date, a check that passed and then failed says so, and test files the session changed or deleted are flagged. Agents' own runs are picked up from their shell commands; a result counts as passed only when the agent reports it.
+- `zerostel check -- <command>` runs a check and records it against the code as it is now. Guardrails look at the command inside it (and inside `zerostel run --`) too.
+- A check that keeps failing run after run (three or more in a row, up to now) is pointed out in `zerostel log`, `zerostel checks` and handoffs: the agent may be going in circles.
+- Reports list the session's checks and whether the code changed after each one; the shared version names their kind, not the command.
+
+Hand it over
+
+- `zerostel handoff` writes what the next agent or person needs to carry on: your prompts (the only instructions in it), the files that differ, which checks still hold, what was tried and undone, and what isn't covered. No tool output is copied in. `zerostel handoff check <file>` says whether the folder still matches.
+- The MCP server has `checks` and `handoff` tools, and `rewind` takes `keep_others`.
+
+Rewinds
+
+- A rewind's preview names the files another agent's session, or you outside the agent, changed since then; `--keep-others` leaves them as they are.
+- A rewind looks at every file a second time right before deleting or overwriting it, a few at a time, and leaves alone any that another program (the agent, an editor, a build) wrote since it was backed up.
+- On a new project, a prompt that comes while the first snapshot is still being taken in the background helps finish it, so it gets its snapshot. If a turn still has none from before its prompt, `zerostel undo` goes back as far into the turn as there is one, instead of undoing only its last step.
+- `zerostel log` marks steps that ran with no snapshot just before them, and says why; `zerostel status` says when the first snapshot is still being taken.
+- The web UI marks the tests and builds the agent ran, and the steps with no snapshot.
+
+Security
+
+- On Windows, a guardrail check no longer looks up a network path (`\\server\share`) on another server: looking it up connects to that server and can hand it your sign-in. Rules still match it as written.
+
+Docs
+
+- [Zerostel and other tools](docs/alternatives.md): Turnback, Turnal, bashback, logbook, codex-rewind and ccundo, what each does, and when one of them fits better. The README has the short version.
+- [What each agent tells Zerostel](docs/install.md#what-each-agent-tells-zerostel): prompts, "ask" rules, failed commands and tokens, agent by agent.
+- README: the comparison with git now credits `git stash` with keeping uncommitted work.
+
 ## 0.1.3 (2026-10-05)
 
 Fixes from a security and data-safety review. After upgrading, run `zerostel install` once more so your agents' hooks run the new version; the snapshot store updates itself on first use.

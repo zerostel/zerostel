@@ -4,9 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { handleHook } from '../src/agents/hooks.js';
-import { applyRestore, rewindTarget, undoTarget } from '../src/commands/rewind.js';
+import { applyRestore, changedByOthers, rewindTarget, undoTarget } from '../src/commands/rewind.js';
 import { openProject } from '../src/store/project.js';
-import { append, findSession, loadSession, newId, now } from '../src/store/session.js';
+import { append, findSession, loadSession, newId, now, sessionRef } from '../src/store/session.js';
 import { restore, snapshot, trackedPaths } from '../src/store/shadow.js';
 import { withLock } from '../src/util/lock.js';
 import { sandbox, type Sandbox } from './helpers.js';
@@ -116,6 +116,71 @@ describe('a snapshotted file replaced by a link', () => {
     fs.symlinkSync(outside, path.join(sb.project, 'docs'), process.platform === 'win32' ? 'junction' : 'dir');
     const s2 = snapshot(p, 'T2');
     expect([...trackedPaths(p, s2.sha)].filter((f) => f.startsWith('docs/'))).toEqual([]);
+  });
+});
+
+describe('undo when a turn has no snapshot from before its prompt', () => {
+  it('goes back as far into the turn as there is one, not just its last step', () => {
+    // a new project: the first snapshot was still being taken when the prompt came
+    const p = openProject(sb.project, sb.ctx);
+    sb.write('src/legacy/a.ts', 'legacy\n');
+    sb.write('src/app.ts', 'x = 1\n');
+    const ref = sessionRef(p, 'claude-code', 'late');
+    append(ref, { e: 'start', ts: now(), agent: 'claude-code', session: 'late', cwd: sb.project });
+    append(ref, { e: 'prompt', ts: now(), id: newId(), text: 'remove legacy and change x', nosnap: 'the first snapshot of this project was still being taken' });
+    const s1 = snapshot(p, 'before rm').sha;
+    append(ref, { e: 'pre', ts: now(), id: 'rm', tool: 'Bash', kind: 'shell', summary: '$ rm -rf src/legacy', snap: s1 });
+    fs.rmSync(path.join(sb.project, 'src', 'legacy'), { recursive: true });
+    const s2 = snapshot(p, 'after rm').sha;
+    append(ref, { e: 'post', ts: now(), id: 'rm', ok: true, snap: s2, files: [{ path: 'src/legacy/a.ts', status: 'D', added: 0, deleted: 1, binary: false }] });
+    append(ref, { e: 'pre', ts: now(), id: 'ed', tool: 'Edit', kind: 'edit', summary: 'Edit src/app.ts', snap: s2 });
+    sb.write('src/app.ts', 'x = 2\n');
+    const s3 = snapshot(p, 'after edit').sha;
+    append(ref, { e: 'post', ts: now(), id: 'ed', ok: true, snap: s3, files: [{ path: 'src/app.ts', status: 'M', added: 1, deleted: 1, binary: false }] });
+    const s = loadSession(ref);
+    const t = undoTarget(s)!;
+    expect(t.snap).toBe(s1);
+    expect(t.label).toMatch(/Undo turn #1 from #2/);
+    applyRestore(p, s.ref, t);
+    expect(sb.read('src/legacy/a.ts')).toBe('legacy\n');
+    expect(sb.read('src/app.ts')).toBe('x = 1\n');
+  });
+});
+
+describe("a rewind and other people's work", () => {
+  it('knows what another agent, or the user outside the agent, changed since, and can leave it', () => {
+    sb.write('a.txt', 'a1\n');
+    sb.write('b.txt', 'b1\n');
+    sb.write('c.txt', 'c1\n');
+    const claude = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'mine', cwd: sb.project, ...e }, sb.ctx);
+    const codex = (e: Record<string, unknown>) => handleHook('codex', { session_id: 'theirs', cwd: sb.project, ...e }, sb.ctx);
+    const edit = (ev: typeof claude, id: string, file: string, text: string) => {
+      ev({ hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: id, tool_input: { file_path: path.join(sb.project, file) } });
+      sb.write(file, text);
+      ev({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_use_id: id, tool_input: { file_path: path.join(sb.project, file) }, tool_response: {} });
+    };
+    claude({ hook_event_name: 'UserPromptSubmit', prompt: 'change a' });
+    edit(claude, 'w1', 'a.txt', 'a2\n');
+    // meanwhile another agent works in the same folder, and the user edits c.txt by hand
+    codex({ hook_event_name: 'UserPromptSubmit', prompt: 'change b' });
+    edit(codex, 'w2', 'b.txt', 'b2\n');
+    sb.write('c.txt', 'c2 by hand\n');
+    claude({ hook_event_name: 'Stop' });
+    const p = openProject(sb.project, sb.ctx);
+    const s = loadSession(findSession(p, 'mine')!);
+    const t = rewindTarget(s, '1');
+    const others = changedByOthers(p, s, t);
+    expect(others.get('b.txt')).toMatch(/^Codex session/);
+    expect(others.get('c.txt')).toBe('edits outside the agent');
+    expect(others.has('a.txt')).toBe(false);
+    const preview = applyRestore(p, s.ref, t, { dryRun: true });
+    expect(preview.modified.sort()).toEqual(['a.txt', 'b.txt', 'c.txt']);
+    const r = applyRestore(p, s.ref, t, { keep: [...others.keys()] });
+    expect(r.kept.sort()).toEqual(['b.txt', 'c.txt']);
+    expect(r.failed).toEqual([]);
+    expect(sb.read('a.txt')).toBe('a1\n');
+    expect(sb.read('b.txt')).toBe('b2\n');
+    expect(sb.read('c.txt')).toBe('c2 by hand\n');
   });
 });
 

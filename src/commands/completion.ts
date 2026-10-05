@@ -3,7 +3,7 @@ import { ADAPTERS } from '../agents/adapters.js';
 // `zerostel completion <shell>` prints a completion script to source from your
 // shell's startup file. The scripts only list words; they never run anything.
 
-const COMMANDS = ['install', 'uninstall', 'run', 'demo', 'log', 'ui', 'sessions', 'show', 'diff', 'find', 'undo', 'rewind', 'snapshot', 'report', 'verify', 'policy', 'mcp', 'status', 'doctor', 'prune', 'projects', 'config', 'completion', 'help'];
+const COMMANDS = ['install', 'uninstall', 'run', 'demo', 'log', 'ui', 'sessions', 'show', 'diff', 'find', 'undo', 'rewind', 'snapshot', 'check', 'checks', 'handoff', 'report', 'verify', 'policy', 'mcp', 'status', 'doctor', 'prune', 'projects', 'config', 'completion', 'help'];
 const FLAGS = ['--session', '--project', '--agent', '--json', '--yes', '--dry-run', '--after', '--only', '--changes', '--message', '--output', '--open', '--share', '--no-prompts', '--no-output', '--no-diffs', '--older-than', '--force', '--all', '--port', '--no-open', '--help', '--version'];
 const SUB: Record<string, string[]> = {
   policy: ['init', 'test'],

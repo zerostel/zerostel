@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import vm from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { handleHook } from '../src/agents/hooks.js';
 import { openProject } from '../src/store/project.js';
@@ -62,6 +63,10 @@ describe('zerostel ui security', () => {
     expect(r.headers['content-security-policy']).toMatch(/frame-ancestors 'none'/);
     expect(r.headers['x-frame-options']).toBe('DENY');
     expect(r.body).not.toContain(ui.token);
+    // the page's script is a template inside TypeScript: make sure what comes out still parses
+    const script = /<script nonce="[^"]+">([\s\S]*?)<\/script>/.exec(r.body)?.[1];
+    expect(script).toBeTruthy();
+    expect(() => new vm.Script(script!)).not.toThrow();
   });
 
   it('rejects other Host headers (DNS rebinding)', async () => {

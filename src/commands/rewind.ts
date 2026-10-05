@@ -1,10 +1,12 @@
 import { restoreHome, type HomeRestore } from '../store/home.js';
 import { storeInProject, type Project } from '../store/project.js';
-import { append, loadSession, newId, now, readEvents, readState, writeState, type Ev, type Session, type SessionRef, type Step } from '../store/session.js';
+import fs from 'node:fs';
+import { append, listSessions, loadSession, newId, now, readEvents, readState, shortId, writeState, type Ev, type Session, type SessionRef, type Step } from '../store/session.js';
 import { checkWritable, systemOf, type EnvChange, type EnvValue } from '../system/probe.js';
 import { changes, restore, revExists, snapshot, type RestoreResult } from '../store/shadow.js';
 import { withLock } from '../util/lock.js';
 import type { Ctx } from '../util/paths.js';
+import { agentName } from '../view/timeline.js';
 
 /** Snapshot of the project just before step `idx` ran. */
 export function snapBefore(steps: Step[], idx: number): string | undefined {
@@ -83,9 +85,15 @@ export function undoTarget(s: Session): Target | null {
     const [prompt, i] = prompts[k]!;
     const end = k + 1 < prompts.length ? prompts[k + 1]![1] : s.steps.length;
     const turn = s.steps.slice(i + 1, end);
-    if (turn.some((x) => (x.type === 'tool' || x.type === 'change') && x.files.length) && prompt.before) {
-      return { snap: prompt.before, label: `Undo turn #${prompt.n}`, step: prompt, home: prompt.homeBefore };
-    }
+    if (!turn.some((x) => (x.type === 'tool' || x.type === 'change') && x.files.length)) continue;
+    if (prompt.before) return { snap: prompt.before, label: `Undo turn #${prompt.n}`, step: prompt, home: prompt.homeBefore };
+    // No snapshot from before the prompt (a new project's first snapshot was
+    // still being taken): go back as far into the turn as there is one,
+    // rather than quietly undoing only its last step.
+    // (for edits made outside the agent, the point just after them: before them may be an earlier turn)
+    const first = turn.find((x) => (x.type === 'tool' || x.type === 'change' ? x.before : x.type === 'outside' ? x.after : undefined));
+    const snap = first && (first.type === 'outside' ? first.after : first.before);
+    if (first && snap) return { snap, label: `Undo turn #${prompt.n} from #${first.n} (the turn has no snapshot from before it)`, step: first, home: first.type === 'outside' ? first.homeAfter : first.homeBefore };
   }
   for (let i = s.steps.length - 1; i >= 0; i--) {
     const st = s.steps[i]!;
@@ -108,6 +116,44 @@ function since(s: Session, t: Target): number | null {
   if (!t.step) return null;
   const idx = s.steps.findIndex((x) => x.id === t.step!.id);
   return idx < 0 ? null : idx + (t.after ? 1 : 0);
+}
+
+/**
+ * Files someone other than this session changed after the target: another
+ * agent's session in the same project, or edits made outside the agent. A
+ * rewind of this session would take those back too; the caller can say so,
+ * or leave them alone. Path -> who changed it.
+ */
+export function changedByOthers(p: Project, s: Session, t: Target): Map<string, string> {
+  const sinceMs = t.step ? Date.parse(t.step.ts) : s.startedAt ? Date.parse(s.startedAt) : 0;
+  const later = s.steps.slice(since(s, t) ?? 0);
+  // when this session itself last changed each file (its own tool calls and rewinds)
+  const mine = new Map<string, number>();
+  for (const st of later) if (st.type === 'tool' || st.type === 'change' || st.type === 'restore') for (const f of st.files) mine.set(f.path, Date.parse(st.endTs ?? st.ts));
+  // who changed it after that: [time, who]
+  const last = new Map<string, [number, string]>();
+  const note = (path: string, at: number, who: string) => {
+    if ((mine.get(path) ?? -Infinity) >= at) return;
+    if ((last.get(path)?.[0] ?? -Infinity) < at) last.set(path, [at, who]);
+  };
+  for (const ref of listSessions(p)) {
+    if (ref.file === s.ref.file) continue;
+    try {
+      if (fs.statSync(ref.file).mtimeMs < sinceMs) continue;
+    } catch {
+      continue;
+    }
+    const other = loadSession(ref);
+    const who = `${agentName(other.agent)} session ${shortId(other.id)}`;
+    // only its own steps: what it saw as "outside" may be this session's work
+    for (const st of other.steps) {
+      if ((st.type !== 'tool' && st.type !== 'change' && st.type !== 'restore') || Date.parse(st.ts) < sinceMs) continue;
+      for (const f of st.files) note(f.path, Date.parse(st.endTs ?? st.ts), who);
+    }
+  }
+  // changes this session saw from outside, that no other session claims
+  for (const st of later) if (st.type === 'outside') for (const f of st.files) if (!last.has(f.path)) note(f.path, Date.parse(st.ts), 'edits outside the agent');
+  return new Map([...last].map(([path, [, who]]) => [path, who]));
 }
 
 /** User environment changes since the target, as the changes that would undo them. */
@@ -141,7 +187,7 @@ function envPlan(ctx: Ctx, ref: SessionRef, s: Session, from: number): { plan: E
   };
 }
 
-export function applyRestore(p: Project, ref: SessionRef, t: Target, opts: { only?: string[]; dryRun?: boolean; ctx?: Ctx } = {}): Restored {
+export function applyRestore(p: Project, ref: SessionRef, t: Target, opts: { only?: string[]; keep?: string[]; dryRun?: boolean; ctx?: Ctx } = {}): Restored {
   if (!revExists(p, t.snap)) throw new Error(`snapshot ${t.snap.slice(0, 10)} is missing from ${p.repo.gitDir}`);
   const label = t.label + (opts.only?.length ? ` (${opts.only.join(', ')})` : '');
   const id = newId();
@@ -188,7 +234,7 @@ export function applyRestore(p: Project, ref: SessionRef, t: Target, opts: { onl
     for (const c of changes(p, t.snap, after)) {
       const inScope = !opts.only?.length || opts.only.some((o) => c.path === o || c.path.startsWith(o.replace(/\/$/, '') + '/'));
       const ours = own !== null && (c.path === own || c.path.startsWith(own + '/'));
-      if (inScope && !ours && !failed.has(c.path)) res.failed.push({ path: c.path, error: 'still differs from the snapshot after rewinding' });
+      if (inScope && !ours && !failed.has(c.path) && !res.kept.includes(c.path)) res.failed.push({ path: c.path, error: 'still differs from the snapshot after rewinding' });
     }
     const homeFiles = (res.home?.restored ?? []).map((path) => ({ path, status: 'M' as const, added: 0, deleted: 0, binary: false }));
     for (const f of res.home?.failed ?? []) res.failed.push(f);

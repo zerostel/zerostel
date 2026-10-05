@@ -32,7 +32,7 @@
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zerostel","url":"https://zerostel.com/","description":"A flight recorder and time machine for AI coding agents: it records every step, rewinds the project to any of them, enforces your own guardrails and keeps a log you can verify.","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","license":"https://www.apache.org/licenses/LICENSE-2.0","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/zerostel/zerostel","https://www.npmjs.com/package/zerostel"]}
 </script>
 <meta name="theme-color" content="#19242d">
-<link rel="stylesheet" href="/assets/site.css?v=a10a8a7e37">
+<link rel="stylesheet" href="/assets/site.css?v=08f2cbd5d9">
 <script src="/assets/site.js?v=d48fee876f" defer></script>
 </head>
 <body>
@@ -230,7 +230,7 @@
       </video>
       <figcaption>25 seconds, no sound: an agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel undo</code> brings it back.</figcaption>
     </figure>
-    <div class="grid g4">
+    <div class="grid g3">
       <div class="card">
         <div class="icon" aria-hidden="true">●</div>
         <h3>Record</h3>
@@ -248,6 +248,18 @@
         <h3>Guard</h3>
         <p>Your own rules stop a tool call, or make the agent ask you first, before it runs. Same rules for every agent.</p>
         <pre>zerostel policy init</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">◎</div>
+        <h3>Check</h3>
+        <p>Every test, type check and build the agent runs is tied to the code it ran on. A pass on code that changed since shows as out of date, not as done.</p>
+        <pre>zerostel checks</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">⇄</div>
+        <h3>Hand over</h3>
+        <p>Your asks, where the code stands, which checks still hold and what was tried, for the next agent or person. They can see whether the folder still matches.</p>
+        <pre>zerostel handoff</pre>
       </div>
       <div class="card">
         <div class="icon" aria-hidden="true">✓</div>
@@ -325,6 +337,7 @@
           <tr><th scope="row">Back to a specific step</th><td>usually per prompt</td><td>per commit</td><td class="yes">per tool call</td></tr>
           <tr><th scope="row">Timeline with tokens and time</th><td>partial</td><td class="no">no</td><td class="yes">yes</td></tr>
           <tr><th scope="row">Your rules, before a tool runs</th><td>per agent</td><td class="no">no</td><td class="yes">same for every agent</td></tr>
+          <tr><th scope="row">Was it tested on this exact code?</th><td class="no">no</td><td>per commit, if CI runs</td><td class="yes">per step, out-of-date passes flagged</td></tr>
           <tr><th scope="row">Log that shows edits</th><td class="no">no</td><td>yes</td><td class="yes">yes</td></tr>
           <tr><th scope="row">Touches your .git</th><td>some do</td><td>yes</td><td class="yes">never</td></tr>
           <tr><th scope="row">Shareable session report</th><td>varies by agent</td><td class="no">no</td><td class="yes">yes</td></tr>
@@ -332,6 +345,15 @@
       </table>
     </div>
     <p class="small">Longer read: <a href="/blog/agent-checkpoints/">What your coding agent's checkpoints can't bring back</a>, with the incidents behind this table.</p>
+    <h3 class="also">And next to the other add-ons</h3>
+    <p class="sub">Turnback, Turnal, bashback, logbook and codex-rewind are good tools too. What Zerostel adds:</p>
+    <ul class="checks">
+      <li><b>Rewinds that don't lose work.</b> Nothing deleted or overwritten without an exact copy, each file looked at again right before it changes, other people's changes kept with <code>--keep-others</code>, and every rewind undoable.</li>
+      <li><b>More than the project folder.</b> Watched files like <code>~/.zshrc</code>, Windows user environment variables, and global installs, listed with the commands that undo them.</li>
+      <li><b>Evidence tied to the code.</b> Tests and builds recorded against the exact code they ran on: a pass on code that changed since shows as out of date.</li>
+      <li><b>One set of rules, your agents as they are.</b> The same guardrails for every agent, hooked into the official ones: no fork, no wrapper, no runtime dependencies.</li>
+    </ul>
+    <p class="small">Something else can fit better: the agents' own <code>/rewind</code> and codex-rewind bring the conversation back with the files, and Turnal can bisect the turn that broke the tests. <a href="https://github.com/zerostel/zerostel/blob/main/docs/alternatives.md">Each tool side by side, with sources</a>.</p>
   </div>
 </section>
 

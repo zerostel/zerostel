@@ -23,7 +23,21 @@
 |---|---|
 | `zerostel undo` | Back to before the agent's last turn that changed files. Run it again right after to undo the undo. |
 | `zerostel rewind <n>` | Back to just before step *n* (`--after` for just after, `0` for point zero). Without *n* it lists the steps and asks. `--only <path>` for part of the project, `--dry-run` to preview. |
+| `--keep-others` | With `undo` or `rewind`: leave files that another agent's session, or you outside the agent, changed since then as they are. The preview names those files either way. |
 | `zerostel snapshot -m "msg"` | Save a checkpoint by hand. |
+
+A rewind never deletes or overwrites a file the snapshot it takes first has no exact copy of (one git couldn't read, one left out of snapshots, one another program wrote while the rewind ran); it lists those instead. `zerostel log` marks steps that ran with no snapshot just before them, so you can see which points a rewind can reach.
+
+**Check the work**
+
+| Command | |
+|---|---|
+| `zerostel checks` | Every test, type check, linter and build the session ran: passed, failed, or **out of date** because the code changed after it ran. Also flags test files the session changed or deleted. |
+| `zerostel check -- <command>` | Run one yourself (`zerostel check -- npm test`) and record its result against the code as it is now. Exits with the command's exit code. |
+| `zerostel handoff` | What the next agent or person needs to carry on: your prompts (the only instructions in it), which files differ, which checks still hold, what was tried and undone, what isn't covered. `-o file` to save it. |
+| `zerostel handoff check <file>` | Whether the folder still matches a handoff, and which files changed if not. |
+
+A check the agent ran counts as passed only when the agent reports the result (Claude Code, Cursor and Copilot CLI send failed tool calls separately; for the others Zerostel looks for an exit code in what the agent reports). A command whose exit status can't be the check's own (`npm test | tail`, `npm test || true`) is treated the same way. When the result is unknown, it shows as "result not reported", never as "passed".
 
 **Share and check**
 

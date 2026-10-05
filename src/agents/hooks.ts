@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { agentCheckResult, checkKind, checkName, resultMasked } from '../commands/checks.js';
 import { redact } from '../detect/secrets.js';
 import { evaluate, loadPolicy, withMovedFolders, type Decision } from '../guard/policy.js';
 import { hookStatus } from '../install.js';
@@ -296,6 +297,8 @@ interface Env {
   result: HookResult;
   /** hands a project's first snapshot to a background worker */
   startBaseline?: (root: string) => void;
+  /** why snapshots are off for this project, when they are */
+  noSnap?: string;
 }
 
 // Watched files outside the project (config.json `watch`) are snapshotted at
@@ -322,7 +325,7 @@ function snapHome(env: Env): void {
 // A skipped snapshot (project too large, paused) still records the step. A
 // first snapshot that didn't finish in time carries on in the background.
 // Files git couldn't copy are reported (errors.log, doctor); rewinds leave them alone.
-function trySnapshot(p: Project, msg: string, startBaseline?: (root: string) => void, problem?: (m: string) => void): string | undefined {
+function trySnapshot(p: Project, msg: string, startBaseline?: (root: string) => void, problem?: (m: string) => void, skipped?: (why: string) => void): string | undefined {
   try {
     const s = snapshot(p, msg);
     if (s.incomplete) problem?.(`snapshot incomplete, some files keep an older copy: ${s.incomplete}`);
@@ -330,17 +333,25 @@ function trySnapshot(p: Project, msg: string, startBaseline?: (root: string) => 
   } catch (e) {
     if (e instanceof BaselinePending) {
       if (startBaseline && !baselineRunning(p)) startBaseline(p.root);
+      skipped?.('the first snapshot of this project was still being taken');
       return undefined;
     }
-    if (e instanceof SnapshotSkipped) return undefined;
+    if (e instanceof SnapshotSkipped) {
+      skipped?.(e.message);
+      return undefined;
+    }
     throw e;
   }
 }
 
-function snap(env: Env, msg: string): string | undefined {
+/** A snapshot before something that may change files, or why there is none. */
+function snap(env: Env, msg: string, skipped?: (why: string) => void): string | undefined {
   snapHome(env);
-  if (!env.canSnap) return undefined;
-  const s = trySnapshot(env.p, msg, env.startBaseline, (m) => (env.result.problem ??= m));
+  if (!env.canSnap) {
+    skipped?.(env.noSnap ?? 'snapshots are off here');
+    return undefined;
+  }
+  const s = trySnapshot(env.p, msg, env.startBaseline, (m) => (env.result.problem ??= m), skipped);
   if (!s) return undefined;
   // anything that changed since our last snapshot happened outside the agent
   if (env.st.lastSnap && env.st.lastSnap !== s) {
@@ -473,7 +484,9 @@ export function handleHook(
   if (input.moment === 'pre') Object.assign(result, guard(base, tool0, input.tool_input ?? {}, p.root, shellCwd, input.raw_input));
   if (result.decision) opts.onDecision?.(result);
   const ref = sessionRef(p, agent, sessionId);
-  const canSnap = !unsafeRoot(p.root, ctx) && isDir(p.root) && gitVersion() !== null;
+  const unsafe = unsafeRoot(p.root, ctx);
+  const noSnap = unsafe ? `snapshots are off in ${unsafe}` : !isDir(p.root) ? `${p.root} is not a folder` : gitVersion() === null ? 'git was not found' : undefined;
+  const canSnap = !noSnap;
 
   try {
     record(p, ref, canSnap);
@@ -497,7 +510,7 @@ export function handleHook(
     const last = seen[seen.length - 1];
     if (input.tool_use_id ? seen.some(([k]) => k === key) : last?.[0] === key && nowMs - Number(last[1]) < 3000) return;
     st.recent = [...st.recent, `${key}@${nowMs}`].slice(-64);
-    const env: Env = { p, ref, st, canSnap, ctx: base, result, startBaseline: opts.startBaseline };
+    const env: Env = { p, ref, st, canSnap, ctx: base, result, startBaseline: opts.startBaseline, noSnap };
     if (!fs.existsSync(ref.file)) {
       append(ref, { e: 'start', v: SESSION_VERSION, ts: now(), agent, session: sessionId, cwd: dir, transcript: input.transcript_path ?? undefined, source: input.source });
     }
@@ -521,8 +534,9 @@ export function handleHook(
     }
 
     if (moment === 'prompt') {
-      const s = snap(env, 'before prompt');
-      append(ref, { e: 'prompt', ts: now(), id: newId(), text: redact(input.prompt ?? ''), snap: s });
+      let nosnap: string | undefined;
+      const s = snap(env, 'before prompt', (why) => (nosnap = why));
+      append(ref, { e: 'prompt', ts: now(), id: newId(), text: redact(input.prompt ?? ''), snap: s, nosnap });
     } else if (moment === 'pre') {
       const id = toolId(input);
       const summary = summarizeTool(tool, input.tool_input ?? {}, p.root, ctx.home);
@@ -533,7 +547,8 @@ export function handleHook(
       // a blocked call never runs: no snapshot, and no Post will come
       if (!blocked) {
         const mutating = changesFiles(tool);
-        const s = mutating ? snap(env, `before ${tool}`) : undefined;
+        let nosnap: string | undefined;
+        const s = mutating ? snap(env, `before ${tool}`, (why) => (nosnap = why)) : undefined;
         // global packages and the user environment are read only around commands that look like they change them
         let sys;
         try {
@@ -552,6 +567,7 @@ export function handleHook(
           subagent: input.agent_type || undefined,
           input: compactInput(tool, input.tool_input ?? {}),
           snap: s,
+          nosnap,
         });
       }
     } else if (moment === 'post' || moment === 'post-fail') {
@@ -559,6 +575,8 @@ export function handleHook(
       const pending = st.pending[id];
       delete st.pending[id];
       const { ok, output } = summarizeOutput(tool, input.tool_response);
+      // the code a test or build ran against: the snapshot from just before the command
+      const ranOn = pending?.snap;
       let after: string | undefined;
       let files;
       if (changesFiles(tool)) snapHome(env);
@@ -587,6 +605,13 @@ export function handleHook(
         files,
         durationMs: typeof input.duration_ms === 'number' ? input.duration_ms : undefined,
       });
+      const command = toolKind(tool) === 'shell' ? str(input.tool_input?.command) : '';
+      const kind = command ? checkKind(command) : null;
+      if (kind) {
+        // a piped or masked run (npm test | tail, npm test || true) says nothing about the check itself
+        const passed = resultMasked(command) ? undefined : agentCheckResult(agent, moment === 'post-fail' || !ok, input.tool_response, output);
+        append(ref, { e: 'check', ts: now(), id: newId(), name: checkName(command), kind, snap: ranOn, ok: passed, by: 'agent', step: id });
+      }
     } else if (moment === 'stop') {
       const s = snap(env, 'end of turn');
       readTranscriptUsage(input.transcript_path, st);

@@ -33,7 +33,7 @@ describe('MCP server', () => {
     expect(init.result).toMatchObject({ protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'zerostel' } });
     expect(handleMessage(sb.ctx, { jsonrpc: '2.0', method: 'notifications/initialized' })).toBeNull();
     const list = handleMessage(sb.ctx, { jsonrpc: '2.0', id: 2, method: 'tools/list' }) as { result: { tools: { name: string }[] } };
-    expect(list.result.tools.map((t) => t.name)).toEqual(['checkpoint', 'timeline', 'rewind', 'verify', 'check_policy']);
+    expect(list.result.tools.map((t) => t.name)).toEqual(['checkpoint', 'timeline', 'rewind', 'checks', 'handoff', 'verify', 'check_policy']);
     expect(handleMessage(sb.ctx, { jsonrpc: '2.0', id: 3, method: 'nope' })).toMatchObject({ error: { code: -32601 } });
     // requests without an id are notifications: no answer, whatever the method
     expect(handleMessage(sb.ctx, { jsonrpc: '2.0', method: 'tools/list' })).toBeNull();

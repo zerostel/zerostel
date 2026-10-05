@@ -23,3 +23,20 @@ Each agent's own plugin system can install Zerostel too. All of them bring the s
 | MCP clients | `io.github.zerostel/zerostel` in the [MCP Registry](https://registry.modelcontextprotocol.io) | the MCP server ([docs/mcp.md](mcp.md)) |
 
 In Claude Code, use the plugin or `zerostel install`, not both; if both are on, each event is still recorded once. No plugin starts the MCP server by itself: you add it, so you choose which program runs it ([docs/mcp.md](mcp.md)).
+
+## What each agent tells Zerostel
+
+Every agent is recorded the same way, but they don't all report the same things to their hooks. This is what that changes in practice:
+
+| Agent | Your prompts | A rule set to "ask" | A command that failed | Token usage |
+|---|---|---|---|---|
+| Claude Code | ✅ | asks you, in Claude Code | ✅ reported | ✅ from its transcript |
+| Codex | ✅ | blocked, and the agent is told to get your go-ahead | only when an exit code shows in the output | ✅ from its transcript |
+| Cursor | ✅ in the editor; the CLI sends none | blocked, as for Codex | ✅ reported | not captured yet |
+| Gemini CLI | ✅ | blocked, as for Codex | when the tool reports an error, or an exit code shows | not captured yet |
+| Antigravity | turns only, no prompt text | blocked, as for Codex | when the tool reports an error, or an exit code shows | not captured yet |
+| Copilot CLI | ✅ | blocked, as for Codex | ✅ reported | not captured yet |
+| opencode | ✅ | blocked, as for Codex | only when an exit code shows in the output | not captured yet |
+| `zerostel run` | no | no rules: it sees files, not tool calls | its own exit code | no |
+
+"A command that failed" decides what `zerostel checks` can say about a test or build the agent ran: when the agent doesn't report it, the result shows as "not reported", never as passed. `zerostel check -- <command>` always knows, since it runs the command itself.

@@ -8,7 +8,7 @@
 **Rewind any AI agent to point zero.**
 
 Zero trust for AI agents: assume they'll break something, record every step, and rewind the files they touched.
-A flight recorder and time machine for coding agents, with guardrails you set and a log that shows if it was edited.
+A flight recorder and time machine for coding agents: every step on record, tests tied to the code they ran on, guardrails you set, and a handoff the next agent or person can check.
 
 [Website](https://zerostel.com) · [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -35,8 +35,10 @@ Then use your agent as usual. When it breaks something:
 
 ```bash
 zerostel log          # what happened, step by step
+zerostel checks       # did the tests pass on the code as it is now?
 zerostel undo         # put the files back to before the agent's last turn
 zerostel rewind 0     # or all the way back to point zero, where the session started
+zerostel handoff      # what the next agent or person needs to carry on
 zerostel ui           # the same, clickable, in a local web page
 ```
 
@@ -45,6 +47,7 @@ zerostel ui           # the same, clickable, in a local web page
 - **Record.** Every prompt, tool call, command, file change, duration and token count, in one timeline per session: `zerostel log` in the terminal, or `zerostel ui` in a local web page.
 - **Rewind.** A snapshot before and after every tool call that can change files, shell commands included. Undo a turn, go back to any step, or all the way to point zero; every rewind can itself be undone.
 - **Guard.** Your own rules block a tool call, or make the agent ask you first, before it runs. The same rules for every agent.
+- **Check and hand over.** Every test, type check and build the agent runs is tied to the code it ran on, so `zerostel checks` tells a pass on today's code from one on code that has changed since. `zerostel handoff` gives the next agent or person your asks, where things stand and what was tried.
 - **Verify and share.** A hash-chained log that shows if it was edited, and a one-page report with a privacy mode for sharing.
 - **Stay local.** Nothing is uploaded, `~/.zerostel` is readable only by you, and your `.git` is never touched.
 
@@ -60,8 +63,8 @@ Zerostel records every supported agent the same way: a snapshot of the project a
 
 | | Agent's own checkpoints | Commits / `git stash` | **Zerostel** |
 |---|---|---|---|
-| Changes made by shell commands | depends on the agent | only what you committed | ✅ inside the project, plus files you list |
-| Go back to a specific step | usually per prompt | per commit | ✅ per tool call |
+| Changes made by shell commands | depends on the agent | only what you committed or stashed | ✅ inside the project, plus files you list |
+| Go back to a specific step | usually per prompt | per commit or stash | ✅ per tool call |
 | Timeline of commands, files, tokens, time | partial | ❌ | ✅ |
 | Log that shows if it was edited afterwards | ❌ | ✅ (commit hashes) | ✅ |
 | Your own rules: block or ask before a tool runs | per agent | ❌ | ✅ same rules for every agent |
@@ -70,6 +73,18 @@ Zerostel records every supported agent the same way: a snapshot of the project a
 | Shareable report of the session | ❌ | ❌ | ✅ |
 
 Details and sources: [docs/comparison.md](docs/comparison.md). The story behind it, with the incidents: [What your coding agent's checkpoints can't bring back](https://zerostel.com/blog/agent-checkpoints/).
+
+## Compared with other tools
+
+Agents keep adding checkpoints of their own, and there are good add-ons too: [Turnback](https://github.com/MFaizR77/turnback), [Turnal](https://github.com/AadiJo/turnal), [bashback](https://github.com/trouties/bashback), [logbook](https://github.com/sheeki03/logbook), [codex-rewind](https://github.com/extracurricular-ai/codex-rewind). What Zerostel adds:
+
+- **Rewinds that don't lose work.** Nothing is deleted or overwritten without an exact copy, each file is looked at again right before it changes, `--keep-others` keeps what another agent or you changed since, and every rewind, even one cut short, can be undone.
+- **More than the project folder.** Watched files like `~/.zshrc`, Windows user environment variables, and global installs (listed, with the commands that undo them).
+- **Evidence tied to the code.** Tests and builds are recorded against the exact code they ran on, so a pass on code that has changed since shows as out of date, and a handoff can be checked against the folder.
+- **One set of rules for every agent.** Guardrails that block or ask before a tool runs, and a log that shows if it was edited.
+- **Your agents as they are.** Hooks into the official agents, no fork or wrapper; zero runtime dependencies, nothing sent anywhere.
+
+Something else can fit better: the agents' own `/rewind` and codex-rewind bring the conversation back with the files, and Turnal can bisect the turn that broke the tests. [Each tool side by side, with sources](docs/alternatives.md).
 
 ## Supported agents and systems
 
@@ -88,6 +103,8 @@ Details and sources: [docs/comparison.md](docs/comparison.md). The story behind 
 ¹ The real agent on Windows, with its model swapped for a scripted one: a prompt, a file write, a command, a call blocked by a rule, the end of the turn and an undo.
 
 Experimental agents are installed only when you name them: `zerostel install --agent deepseek`. Reports from real sessions are welcome.
+
+Agents don't all report the same things to their hooks (prompts, failed commands, tokens); [what each one tells Zerostel](docs/install.md#what-each-agent-tells-zerostel).
 
 Zerostel doesn't care which model is behind the agent: Claude, GPT, Gemini, DeepSeek or a local one are all recorded the same way.
 
@@ -115,6 +132,7 @@ You need git, and Node 20 or newer. No Node? Every release has a single executab
 | [Zero trust](docs/zero-trust.md) | each principle, and what Zerostel does for it |
 | [Security model](docs/security-model.md) | what it protects and what it doesn't |
 | [Agents' own checkpoints](docs/comparison.md) | what each agent's undo brings back, with sources |
+| [Other tools](docs/alternatives.md) | Turnback, Turnal, bashback and others, side by side |
 | [FAQ](docs/faq.md) | speed, disk use, git, jj, sandboxes, tokens |
 
 Something not working? Run `zerostel doctor`: it checks Node, git, each agent's hooks, your config and guardrails, and its output is safe to paste into an issue.
@@ -125,7 +143,9 @@ Something not working? Run `zerostel doctor`: it checks Node, git, each agent's 
 - Inside one shell command there are no intermediate states: a file created and deleted by the same command is never seen. `zerostel run` snapshots when files settle, so it can miss short-lived files too.
 - Outside the project, only files you list under `watch` are snapshotted, and only files under your home folder. On Windows, user environment variables (`HKCU\Environment`) are read around commands that change them and put back by rewinds; their values are kept in the session log on your machine, never in reports. Global packages are only listed, with the commands to undo them. Rewinds leave alone watched files that didn't exist at the target point. Everything else outside the project isn't covered; the timeline still shows the command that touched it.
 - Not snapshotted, and listed by `zerostel log` when present: ignored folders (`node_modules`, `dist/`, anything in `.gitignore`), nested git repositories and submodules, linked folders (symlinks, junctions) and new files above `maxFileMB`.
-- Agents started in your home directory or a drive root get a timeline but no snapshots.
+- Agents started in your home directory, a drive root or a folder above your home folder get a timeline but no snapshots.
+- A rewind puts back whole files: with `--keep-others` it leaves files someone else changed, but it doesn't merge edits two agents made to the same file.
+- A test or build the agent ran counts as passed only when the agent reports the result; `zerostel check -- <command>` always knows.
 - On case-insensitive file systems (Windows, macOS by default) a rename that only changes case, such as `readme.md` → `README.md`, isn't seen as a change.
 - Under WSL, projects on the Windows drive (`/mnt/c/...`) are slow to snapshot. Keep them in the Linux file system.
 - The audit chain shows a log was edited by anything that doesn't have your `audit.key`. Someone using your own account can read the key and rewrite a log completely; keep `~/.zerostel/**` in a deny rule so the agent can't.
@@ -133,8 +153,8 @@ Something not working? Run `zerostel doctor`: it checks Node, git, each agent's 
 
 ## Roadmap
 
-- **Done:** recording and rewinding seven agents, point zero, web UI, shareable reports, verifiable logs, guardrails, MCP server, watched files outside the project.
-- **Next:** signed reports anyone can verify without your key; recording calls to other MCP servers through a Zerostel gateway; test-output parsing to say which test broke; real-session validation of the experimental agents.
+- **Done:** recording and rewinding seven agents, point zero, web UI, shareable reports, verifiable logs, guardrails, MCP server, watched files outside the project, checks tied to the code they ran on, handoffs, rewinds that keep other sessions' work.
+- **Next:** signed reports anyone can verify without your key; recording calls to other MCP servers through a Zerostel gateway; finding the step that broke a check, and which test broke; real-session validation of the experimental agents.
 - **Help wanted:** [test reports from macOS and Linux](https://github.com/zerostel/zerostel/issues/4), and anything labeled [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ## Contributing

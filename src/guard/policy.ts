@@ -340,7 +340,12 @@ function segments(command: string): string[] {
   return command
     .split(/\s*(?:&&|\|\||;|\||&|\r?\n|\$\(|\(|\)|`)\s*/)
     .map((s) => s.trim().replace(/\s+/g, ' '))
-    .filter(Boolean);
+    .filter(Boolean)
+    // `zerostel check -- git reset --hard` runs `git reset --hard`: rules see that too
+    .flatMap((s) => {
+      const inner = /^(?:npx\s+)?zerostel\s+(?:check|run)\b.*?\s--\s+(.+)$/.exec(s)?.[1];
+      return inner ? [s, inner] : [s];
+    });
 }
 
 /**
@@ -363,6 +368,15 @@ export function normalizePath(raw: string, call: Pick<Call, 'home' | 'cwd' | 'pl
   }
   const abs = norm(path.resolve(call.cwd, p.length > LIMITS.pathLength ? p.slice(0, LIMITS.pathLength) : p));
   const out = [abs];
+  // A network path (\\server\share) on a server the project isn't on is
+  // checked as written, not looked up: on Windows, looking it up connects to
+  // that server and can hand it the user's sign-in (NTLM) before any rule
+  // has had its say.
+  const unc = /^\/\/([^/]+)\//.exec(abs + '/');
+  if (unc) {
+    const here = /^\/\/([^/]+)\//.exec(norm(call.cwd) + '/');
+    if (!here || here[1]!.toLowerCase() !== unc[1]!.toLowerCase()) return out;
+  }
   // the real path catches 8.3 short names and links. For a file that doesn't
   // exist yet, the deepest folder that does is resolved and the rest added
   // back, so a new file under a linked folder is checked where it will land.

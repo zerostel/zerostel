@@ -100,8 +100,11 @@ pre{background:var(--code);padding:10px 12px;border-radius:8px;overflow:auto;fon
     for (const st of state.data.steps) {
       if (st.type === 'turn') { tl.append(el('div', 'turn', 'turn done')); continue; }
       const it = el('div', 'item step ' + st.type); it.tabIndex = 0;
-      const icon = { prompt: '❯ ', outside: '✎ ', change: '● ', snapshot: '◆ ', restore: '↺ ', home: '⌂ ', packages: '◇ ', userenv: '≡ ', hooks: '⚑ ', guard: st.guard === 'deny' ? '⊘ ' : '? ' }[st.type] || (st.ok === false ? '✗ ' : '');
+      const icon = { prompt: '❯ ', outside: '✎ ', change: '● ', snapshot: '◆ ', restore: '↺ ', home: '⌂ ', packages: '◇ ', userenv: '≡ ', hooks: '⚑ ', check: st.ok === true ? '✓ ' : st.ok === false ? '✗ ' : '? ', guard: st.guard === 'deny' ? '⊘ ' : '? ' }[st.type] || (st.ok === false ? '✗ ' : '');
       it.append(el('span', 'muted', '#' + st.n), el('span', 'muted small', time(st.ts)), el('span', 's', icon + st.summary), badge(st.files));
+      // a test or build the agent ran, and steps a rewind cannot go back to
+      if (st.type === 'tool' && st.check) it.append(el('span', st.check.ok === true ? 'add small' : st.check.ok === false ? 'del small' : 'muted small', st.check.ok === true ? st.check.kind + ' passed' : st.check.ok === false ? st.check.kind + ' failed' : st.check.kind + ': not reported'));
+      if (st.nosnap) it.append(el('span', 'warn small', 'no snapshot'));
       it.onclick = () => showStep(st, it); it.onkeydown = (e) => { if (e.key === 'Enter') showStep(st, it); };
       tl.append(it);
     }
@@ -117,6 +120,7 @@ pre{background:var(--code);padding:10px 12px;border-radius:8px;overflow:auto;fon
     state.step = st;
     const d = $('detail'); clear(d);
     d.append(el('h2', '', '#' + st.n + '  ' + st.summary), el('div', 'muted small', st.type + (st.tool ? ' · ' + st.tool : '') + ' · ' + new Date(st.ts).toLocaleString() + (st.ok === false ? ' · failed' + passedNote(st) : '')));
+    if (st.nosnap) d.append(el('div', 'warn small', 'No snapshot from just before this step (' + st.nosnap + '): a rewind cannot go back to this point.'));
     if (st.text) d.append(el('pre', '', st.text));
     if (st.input && typeof st.input.command === 'string') d.append(el('pre', '', st.input.command));
     if (st.output) d.append(el('pre', 'muted', st.output));

@@ -234,6 +234,10 @@ class ScanTooLarge extends SnapshotSkipped {}
 const CHUNK = 300;
 /** How long a hook spends on a first snapshot before handing it to the background. */
 export const FIRST_SNAPSHOT_MS = 8_000;
+/** How long a hook helps a background worker that is taking the first snapshot. */
+const HELP_MS = 2_000;
+/** A hook helps only while the worker is in its first seconds. */
+const HELP_WINDOW_MS = 10_000;
 const BASELINE_MAX_MS = 30 * 60 * 1000;
 
 /** Thrown while a project's first snapshot is still being taken. */
@@ -267,6 +271,16 @@ export function baselineRunning(p: Project): boolean {
   } catch (e) {
     // there but not ours to signal still means there
     return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/** How long ago the running worker started, in ms (Infinity when unknown). */
+function baselineAge(p: Project): number {
+  try {
+    const at = (JSON.parse(fs.readFileSync(baselineFile(p), 'utf8')) as { at: number }).at;
+    return Number.isFinite(at) ? Date.now() - at : Infinity;
+  } catch {
+    return Infinity;
   }
 }
 
@@ -351,7 +365,15 @@ function snapshotUnlocked(p: Project, message: string, opts: SnapshotOptions = {
   const paused = snapshotsPaused(p);
   if (paused) throw new SnapshotSkipped(paused);
   const first = head(p) === null;
-  if (first && !opts.background && baselineRunning(p)) throw new BaselinePending('the first snapshot of this project is being taken in the background');
+  // A hook that gets the lock while a worker is taking the first snapshot
+  // helps it along for a moment instead of giving up: on a small project that
+  // finishes it, so the prompt or command about to run still gets a snapshot.
+  // Only in the worker's first seconds, which is when a small project
+  // finishes; on a big one hooks then leave it to the worker, as before,
+  // rather than each spending seconds on it.
+  const running = first && !opts.background && baselineRunning(p);
+  if (running && baselineAge(p) > HELP_WINDOW_MS) throw new BaselinePending('the first snapshot of this project is being taken in the background');
+  const helping = running;
   // we hold the project lock, so an index.lock here was left by a crash
   fs.rmSync(path.join(p.repo.gitDir, 'index.lock'), { force: true });
   // pathspec excludes, not ignore files: a repo's .gitignore can't override them
@@ -380,7 +402,7 @@ function snapshotUnlocked(p: Project, message: string, opts: SnapshotOptions = {
     const large = largeNewFiles(p, links);
     if (large.length) noteSkipped(p, large);
     const skip = [...[...links, ...large].map(exclude), ...userExcludes(p)];
-    if (first && !stageRemaining(p, skip, Date.now() + (opts.firstBudgetMs ?? FIRST_SNAPSHOT_MS), opts.chunk ?? CHUNK, onFail)) {
+    if (first && !stageRemaining(p, skip, Date.now() + (helping ? Math.min(HELP_MS, opts.firstBudgetMs ?? HELP_MS) : (opts.firstBudgetMs ?? FIRST_SNAPSHOT_MS)), opts.chunk ?? CHUNK, onFail)) {
       throw new BaselinePending('the first snapshot of this project is still being taken');
     }
     git(p.repo, ['add', '-A', '--ignore-errors', '--', '.', ...skip], { allowFail: true, onFail, magic: true, timeoutMs: p.config.snapshotTimeoutSec * 1000 });
@@ -468,6 +490,8 @@ export interface RestoreResult {
   modified: string[];
   deleted: string[];
   failed: { path: string; error: string }[];
+  /** files left as they are on purpose (--keep-others: someone else changed them since) */
+  kept: string[];
   dryRun: boolean;
 }
 
@@ -548,6 +572,26 @@ function changedOnDisk(p: Project): Set<string> {
   return new Set(git(p.repo, ['diff-files', '--name-only', '-z']).split('\0').filter(Boolean));
 }
 
+/**
+ * Of `paths`, all backed up in the snapshot just taken, the ones whose file
+ * has been touched since (its size or timestamps no longer match what git
+ * recorded when it checked them). No refresh: any touch counts.
+ */
+function touchedSince(p: Project, paths: string[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < paths.length; ) {
+    // short command lines: Windows allows about 32,000 characters
+    const batch: string[] = [];
+    let len = 0;
+    while (i < paths.length && batch.length < 64 && (batch.length === 0 || len + paths[i]!.length < 12_000)) {
+      len += paths[i]!.length + 1;
+      batch.push(paths[i++]!);
+    }
+    for (const f of git(p.repo, ['diff-files', '--name-only', '-z', '--', ...batch]).split('\0')) if (f) out.add(f);
+  }
+  return out;
+}
+
 export function trackedPaths(p: Project, rev: string): Set<string> {
   return new Set(git(p.repo, ['ls-tree', '-r', '-z', '--name-only', assertRev(rev)]).split('\0').filter(Boolean));
 }
@@ -556,7 +600,7 @@ export function trackedPaths(p: Project, rev: string): Set<string> {
  * Put the working tree back to snapshot `target`. Always snapshots the
  * current state first, so a restore can itself be undone.
  */
-export function restore(p: Project, target: string, opts: { only?: string[]; dryRun?: boolean } = {}): RestoreResult {
+export function restore(p: Project, target: string, opts: { only?: string[]; keep?: string[]; dryRun?: boolean } = {}): RestoreResult {
   assertRev(target);
   return withLock(lockFile(p), () => {
     const current = snapshotUnlocked(p, `before restore to ${target.slice(0, 10)}`).sha;
@@ -565,7 +609,16 @@ export function restore(p: Project, target: string, opts: { only?: string[]; dry
     // snapshots taken before the store was left out may hold it; never write into it
     if (own) diff = diff.filter((c) => !underAny(c.path, [own]));
     if (opts.only?.length) diff = diff.filter((c) => underAny(c.path, opts.only!));
-    const res: RestoreResult = { from: current, to: target, created: [], modified: [], deleted: [], failed: [], dryRun: !!opts.dryRun };
+    const keep = new Set(opts.keep ?? []);
+    const leftAsIs = diff.filter((c) => keep.has(c.path)).map((c) => c.path);
+    diff = diff.filter((c) => !keep.has(c.path));
+    // a path above or below a kept one (a file that became a folder, or the
+    // other way round) can't be put back without removing the kept file
+    const keptList = [...keep];
+    const nested = keptList.length ? diff.filter((c) => keptList.some((k) => k.startsWith(c.path + '/') || c.path.startsWith(k + '/'))) : [];
+    diff = diff.filter((c) => !nested.includes(c));
+    const res: RestoreResult = { from: current, to: target, created: [], modified: [], deleted: [], failed: [], kept: leftAsIs, dryRun: !!opts.dryRun };
+    for (const c of nested) res.failed.push({ path: c.path, error: 'a file left as it is (--keep-others) is inside it or above it; left alone' });
     const root = path.resolve(p.root);
     const skip = (rel: string, error: string) => res.failed.push({ path: rel, error });
     // What the snapshot just taken really holds a copy of: in it, and the
@@ -574,6 +627,8 @@ export function restore(p: Project, target: string, opts: { only?: string[]; dry
     // isn't backed up exactly is ever deleted or overwritten.
     const unsaved = changedOnDisk(p);
     const kept = new Set([...trackedPaths(p, current)].filter((x) => !unsaved.has(x)));
+    // paths that had something at them when checked, for the second look before writing
+    const existed = new Set<string>();
     for (const c of diff) {
       if (!validRel(c.path)) {
         skip(c.path, 'unsafe path, skipped');
@@ -594,71 +649,115 @@ export function restore(p: Project, target: string, opts: { only?: string[]; dry
         skip(c.path, unsaved.has(c.path) ? "changed since Zerostel could last copy it (locked or unreadable?); left alone" : "Zerostel has no copy of what's there now (excluded, too large or ignored); left alone");
         continue;
       }
+      if (st) existed.add(c.path);
       if (c.status === 'A') res.created.push(c.path);
       else if (c.status === 'D') res.deleted.push(c.path);
       else res.modified.push(c.path);
     }
     if (opts.dryRun) return res;
 
-    for (const rel of res.deleted) {
-      if (blockingParent(root, rel)) {
-        skip(rel, 'a parent folder is a symlink or file now; left alone');
-        continue;
-      }
-      const abs = path.join(root, rel);
+    // The agent, an editor or a build may still be writing while this runs,
+    // and Zerostel's locks don't stop them. So everything is checked a second
+    // time right before it's deleted or overwritten, a few files at a time:
+    // a file that changed since it was backed up is left alone. (A write in the
+    // milliseconds between that look and the change itself can still be lost.)
+    const MOVED = 'changed while the rewind was running; left alone';
+    const there = (rel: string) => {
       try {
-        if (fs.lstatSync(abs).isDirectory()) {
-          skip(rel, 'is a folder now; left alone');
-          continue;
-        }
-        fs.unlinkSync(abs);
-        removeEmptyParents(root, rel);
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') skip(rel, (e as Error).message);
-      }
-    }
-
-    const write: string[] = [];
-    for (const rel of [...res.created, ...res.modified]) {
-      // something in the way: a symlink or file where the target has a folder
-      const parent = blockingParent(root, rel);
-      if (parent) {
-        if (!kept.has(parent)) {
-          skip(rel, `${parent} is in the way and Zerostel has no copy of it; move it and try again`);
-          continue;
-        }
-        try {
-          fs.unlinkSync(path.join(root, parent));
-        } catch (e) {
-          skip(rel, (e as Error).message);
-          continue;
-        }
-      }
-      // a folder (or link) where the target has a file
-      const abs = path.join(root, rel);
-      let st: fs.Stats | null = null;
-      try {
-        st = fs.lstatSync(abs);
+        fs.lstatSync(path.join(root, rel));
+        return true;
       } catch {
-        // doesn't exist yet
+        return false;
       }
-      if (st?.isSymbolicLink()) {
-        if (!kept.has(rel)) {
-          skip(rel, 'a symlink Zerostel has no copy of is in the way; move it and try again');
+    };
+    const BATCH = 64;
+    for (let i = 0; i < res.deleted.length; i += BATCH) {
+      const batch = res.deleted.slice(i, i + BATCH);
+      const moved = touchedSince(p, batch);
+      for (const rel of batch) {
+        if (blockingParent(root, rel)) {
+          skip(rel, 'a parent folder is a symlink or file now; left alone');
           continue;
         }
-        fs.unlinkSync(abs);
-      } else if (st?.isDirectory()) {
-        if (!fullyBackedUp(root, rel, kept)) {
-          skip(rel, 'a folder with files Zerostel has no copy of is in the way; move it and try again');
+        if (moved.has(rel) && there(rel)) {
+          skip(rel, MOVED);
           continue;
         }
-        fs.rmSync(abs, { recursive: true, force: true });
+        const abs = path.join(root, rel);
+        try {
+          if (fs.lstatSync(abs).isDirectory()) {
+            skip(rel, 'is a folder now; left alone');
+            continue;
+          }
+          fs.unlinkSync(abs);
+          removeEmptyParents(root, rel);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'ENOENT') skip(rel, (e as Error).message);
+        }
       }
-      write.push(rel);
     }
 
-    if (write.length) {
+    const toWrite = [...res.created, ...res.modified];
+    for (let i = 0; i < toWrite.length; i += BATCH) {
+      const batch = toWrite.slice(i, i + BATCH);
+      const moved = touchedSince(p, batch.filter((rel) => kept.has(rel)));
+      const write: string[] = [];
+      for (const rel of batch) {
+        // something in the way: a symlink or file where the target has a folder
+        const parent = blockingParent(root, rel);
+        if (parent) {
+          if (!kept.has(parent)) {
+            skip(rel, `${parent} is in the way and Zerostel has no copy of it; move it and try again`);
+            continue;
+          }
+          if (touchedSince(p, [parent]).has(parent)) {
+            skip(rel, `${parent} is in the way and ${MOVED}`);
+            continue;
+          }
+          try {
+            fs.unlinkSync(path.join(root, parent));
+          } catch (e) {
+            skip(rel, (e as Error).message);
+            continue;
+          }
+        }
+        // a folder (or link) where the target has a file
+        const abs = path.join(root, rel);
+        let st: fs.Stats | null = null;
+        try {
+          st = fs.lstatSync(abs);
+        } catch {
+          // doesn't exist yet
+        }
+        // nothing was there when checked, and something is now: someone else's new file
+        if (st && !existed.has(rel)) {
+          skip(rel, 'something was written there while the rewind was running; left alone');
+          continue;
+        }
+        if (st?.isSymbolicLink()) {
+          if (!kept.has(rel) || moved.has(rel)) {
+            skip(rel, kept.has(rel) ? MOVED : 'a symlink Zerostel has no copy of is in the way; move it and try again');
+            continue;
+          }
+          fs.unlinkSync(abs);
+        } else if (st?.isDirectory()) {
+          const inside = [...kept].filter((k) => k.startsWith(rel + '/'));
+          if (!fullyBackedUp(root, rel, kept)) {
+            skip(rel, 'a folder with files Zerostel has no copy of is in the way; move it and try again');
+            continue;
+          }
+          if (touchedSince(p, inside).size) {
+            skip(rel, `a folder in the way has files that ${MOVED}`);
+            continue;
+          }
+          fs.rmSync(abs, { recursive: true, force: true });
+        } else if (st && moved.has(rel)) {
+          skip(rel, MOVED);
+          continue;
+        }
+        write.push(rel);
+      }
+      if (!write.length) continue;
       try {
         git(p.repo, ['checkout', target, '--pathspec-from-file=-', '--pathspec-file-nul'], { input: write.join('\0') });
       } catch {

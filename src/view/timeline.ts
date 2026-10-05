@@ -68,6 +68,8 @@ function icon(st: Step): string {
       return st.guard === 'deny' ? c.red('⊘') : c.yellow('?');
     case 'hooks':
       return c.red('⚑');
+    case 'check':
+      return st.ok === true ? c.green('✓') : st.ok === false ? c.red('✗') : c.yellow('?');
     default:
       return st.ok === false ? c.red('✗') : ' ';
   }
@@ -89,9 +91,27 @@ export function renderHeader(s: Session): string[] {
   return lines;
 }
 
+/** Steps that ran with no snapshot from just before them, so a rewind can't go back to that point. */
+export function unprotected(s: Session): Step[] {
+  return s.steps.filter((x) => x.nosnap && (x.type === 'prompt' || x.type === 'tool'));
+}
+
+/** One line saying which steps have no snapshot and why, or null when all do. */
+export function protectionNote(s: Session): string | null {
+  const bare = unprotected(s);
+  if (!bare.length) return null;
+  const reasons = [...new Set(bare.map((x) => x.nosnap!))];
+  const all = !s.steps.some((x) => x.before);
+  const which = all ? 'No step has a snapshot' : `${plural(bare.length, 'step')} (#${bare.map((x) => x.n).slice(0, 8).join(', #')}${bare.length > 8 ? ', …' : ''}) ran with no snapshot just before`;
+  return `${which}: ${reasons.slice(0, 2).join('; ')}. A rewind can only go back to points that have one.`;
+}
+
 export function renderTimeline(s: Session, opts: { onlyChanges?: boolean; width?: number; last?: number } = {}): string[] {
   const width = Math.max(60, opts.width ?? process.stdout.columns ?? 100);
-  const lines = [...renderHeader(s), ''];
+  const note = protectionNote(s);
+  const lines = [...renderHeader(s), ...(note ? [c.yellow('! ' + note)] : []), ''];
+  // in a session with no snapshots at all, the note above says so once
+  const flagBare = s.steps.some((x) => x.before);
   const numW = String(s.steps.length).length + 1;
   let steps = s.steps;
   if (opts.last && opts.last > 0) {
@@ -116,7 +136,8 @@ export function renderTimeline(s: Session, opts: { onlyChanges?: boolean; width?
     const dur = ms === undefined ? '' : fmtDuration(ms);
     // fixed columns: number, clock, icon, summary, duration, file changes
     if (st.type === 'prompt') {
-      lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${c.bold(truncate(oneLine(st.summary), width - numW - 15))}`);
+      const bare = flagBare && st.nosnap ? c.yellow('  no snapshot') : '';
+      lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${c.bold(truncate(oneLine(st.summary), width - numW - 15 - (bare ? 13 : 0)))}${bare}`);
       continue;
     }
     // 36 columns for the file changes and the flag after them, so a long
@@ -127,7 +148,8 @@ export function renderTimeline(s: Session, opts: { onlyChanges?: boolean; width?
     let text = plain;
     if (st.type === 'outside') text = c.yellow(plain);
     else if (quiet) text = c.dim(plain);
-    const flag = isDrastic(st) ? c.red('  ⚠') : st.type === 'hooks' ? c.red('  recorder changed') : st.type === 'guard' ? (st.guard === 'deny' ? c.red('  blocked by policy') : c.yellow('  asked first')) : '';
+    const checked = st.type === 'tool' && st.check ? (st.check.ok === true ? c.green(`  ✓ ${st.check.kind} passed`) : st.check.ok === false ? c.red(`  ✗ ${st.check.kind} failed`) : c.dim(`  ${st.check.kind}: result not reported`)) : '';
+    const flag = isDrastic(st) ? c.red('  ⚠') : flagBare && st.nosnap ? c.yellow('  no snapshot') : checked ? checked : st.type === 'hooks' ? c.red('  recorder changed') : st.type === 'guard' ? (st.guard === 'deny' ? c.red('  blocked by policy') : c.yellow('  asked first')) : '';
     lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${text} ${c.dim(dur.padStart(6))}  ${fileBadge(st.files)}${flag}`.trimEnd());
   }
   return lines;

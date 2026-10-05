@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src/generated/
+coverage/
+*.log
+.DS_Store
+.zerostel-test-*/
+.playwright-cli/
+.claude/
+packaging/out/
+build/

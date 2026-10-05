@@ -1,0 +1,18 @@
+{
+  "name": "zerostel",
+  "description": "Zerostel for Claude Code: a flight recorder and time machine for your agent.",
+  "owner": {
+    "name": "Zerostel",
+    "email": "hello@zerostel.com"
+  },
+  "plugins": [
+    {
+      "name": "zerostel",
+      "source": {
+        "source": "npm",
+        "package": "zerostel"
+      },
+      "description": "Rewind any AI agent to point zero. Records every step, rewinds to any of them, enforces your guardrails and keeps a log you can verify. Local, no telemetry."
+    }
+  ]
+}

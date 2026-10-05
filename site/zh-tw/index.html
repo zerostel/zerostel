@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Zerostel · 任何 AI agent 出錯，都能回到零點</title>
+<meta name="description" content="給 AI coding agent 的零信任。Zerostel 記錄 Claude Code、Codex、Cursor 等 agent 的每一步，能把專案倒回任何一步，套用你自己定的防護規則，並留下可驗證的紀錄。完全在本機、開源、不收集任何資料。">
+<link rel="canonical" href="https://zerostel.com/zh-tw/">
+<link rel="alternate" hreflang="en" href="https://zerostel.com/">
+<link rel="alternate" hreflang="zh-Hant" href="https://zerostel.com/zh-tw/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/assets/icon-256.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Zerostel · 任何 AI agent 出錯，都能回到零點">
+<meta property="og:description" content="給 AI coding agent 的零信任：假設它一定會出錯，記下每一步，把它動過的檔案倒帶回去。">
+<meta property="og:url" content="https://zerostel.com/zh-tw/">
+<meta property="og:image" content="https://zerostel.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#19242d">
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到內容</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/zh-tw/" aria-label="Zerostel 首頁">
+      <img class="logo-light" src="/assets/logo-light.svg" alt="Zerostel" width="114" height="26">
+      <img class="logo-dark" src="/assets/logo-dark.svg" alt="Zerostel" width="114" height="26">
+    </a>
+    <nav class="nav" aria-label="主要">
+      <a class="hide-sm" href="#how">運作方式</a>
+      <a class="hide-sm" href="#zero-trust">零信任</a>
+      <a class="hide-sm" href="#security">安全性</a>
+      <a class="lang" href="/" hreflang="en" lang="en">English</a>
+      <a class="gh" href="https://github.com/zerostel/zerostel">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">開源 · 完全在本機 · 不收集資料</span>
+      <h1>任何 AI agent 出錯，都能<em>回到零點</em>。</h1>
+      <p class="lead">給 AI coding agent 的零信任：假設它一定會出錯，記下每一步，把它動過的檔案倒帶回去。Claude Code、Codex、Cursor 等 agent 共用同一條時間軸、同一種復原方式、同一套防護規則。</p>
+      <div class="install">
+        <span class="prompt">$</span>
+        <code>npx zerostel install</code>
+        <button class="copy" type="button" data-copy="npx zerostel install" data-done-label="已複製" aria-label="複製安裝指令">複製</button>
+      </div>
+      <p class="small">想先試試看？不用 agent、不碰你的專案：<code>npx zerostel demo</code>。或是先<a href="#rec-title" class="jump">玩玩下面的範例</a>。</p>
+      <div class="ctas">
+        <a class="btn primary" href="https://github.com/zerostel/zerostel/blob/main/README.zh-TW.md">開始使用</a>
+        <a class="btn ghost" href="https://github.com/zerostel/zerostel">在 GitHub 給星星</a>
+      </div>
+    </div>
+
+    <figure class="rec" aria-labelledby="rec-title">
+      <div class="rec-head" aria-hidden="true"><span class="rec-dot"></span><b>REC</b><span>claude code · ~/shop-api</span><span class="rec-clock">00:07.9</span></div>
+      <p class="rec-title" id="rec-title"><span class="tag">互動範例</span> 一段錄下來的 agent 工作過程。拖動它來倒帶。</p>
+      <ol class="rec-steps">
+        <li data-step="1"><span class="n">#1</span><span class="k c-c">❯</span><span class="s"><b>Remove the old auth code</b></span></li>
+        <li data-step="2"><span class="n">#2</span><span class="k">$</span><span class="s">npm test</span><span class="b ok">pass</span></li>
+        <li data-step="3"><span class="n">#3</span><span class="k">·</span><span class="s dim">Read src/app.ts</span></li>
+        <li data-step="4"><span class="n">#4</span><span class="k">✎</span><span class="s">Edit src/app.ts</span><span class="b">+1 −2</span></li>
+        <li data-step="5"><span class="n">#5</span><span class="k">$</span><span class="s">rm -rf src/legacy</span><span class="b bad">3 deleted ⚠</span></li>
+        <li data-step="6"><span class="n">#6</span><span class="k c-r">✗</span><span class="s">npm test</span><span class="b bad">fail</span></li>
+      </ol>
+      <div class="rec-scrub">
+        <label for="scrub">專案狀態： <output id="scrub-out" for="scrub">現在</output></label>
+        <input id="scrub" type="range" min="1" max="7" step="1" value="7" data-now="現在" data-before="第 # 步之前">
+      </div>
+      <div class="rec-files" aria-live="polite">
+        <p class="rec-files-h">專案裡的檔案</p>
+        <ul>
+          <li data-file="app">src/app.ts <em data-state></em></li>
+          <li>src/cart.ts</li>
+          <li data-file="legacy">src/legacy/auth.ts <em data-state></em></li>
+          <li data-file="legacy">src/legacy/session.ts <em data-state></em></li>
+          <li data-file="legacy">src/legacy/tokens.ts <em data-state></em></li>
+        </ul>
+        <p class="rec-status" id="rec-status">現在：src/legacy 不見了，測試也壞了。</p>
+      </div>
+      <button class="rec-zero" type="button" data-zero>↺ 回到零點</button>
+      <template id="rec-text"><span data-k="modified">已修改</span><span data-k="deleted">已刪除</span><span data-k="back">已救回</span><span data-k="now">現在：src/legacy 不見了，測試也壞了。</span><span data-k="past">已倒帶：這之後的步驟都撤銷了，隨時可以再做回來。</span><span data-k="undone">已撤銷</span><span data-k="zeroName">零點</span><span data-k="zero">零點：agent 開始動手之前的專案。</span></template>
+    </figure>
+  </div>
+</section>
+
+<section class="alt" aria-labelledby="agents-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 00 · 支援</span>
+    <h2 id="agents-h">支援你已經在用的 agent</h2>
+    <p class="sub">每個 agent 各有自己的 hooks 接法，但時間軸和規則全部共用；其他工具也能用檔案監看記錄。不管 agent 背後是 Claude、GPT、Gemini、DeepSeek 還是本機模型都一樣。</p>
+    <div class="agents">
+      <span class="agent">Claude Code</span>
+      <span class="agent">Codex</span>
+      <span class="agent">Cursor</span>
+      <span class="agent">Copilot CLI</span>
+      <span class="agent">Antigravity</span>
+      <span class="agent">Gemini CLI <small>企業版</small></span>
+      <span class="agent">opencode</span>
+      <span class="agent">DeepSeek Harness <small>實驗性</small></span>
+      <span class="agent">其他任何工具 <small>zerostel run</small></span>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="ports-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 01 · 接線盤</span>
+    <h2 id="ports-h">在哪裡工作，就從哪裡接上</h2>
+    <p class="sub">終端機裡的一行指令、agent 裡的外掛或擴充、agent 能呼叫的 server、CI 裡的一個步驟。每條路都接到你電腦上同一個記錄器、同一套規則。</p>
+    <div class="bay">
+      <div class="bay-row">
+        <div class="bay-head">
+          <h3>安裝</h3>
+          <p>把 Zerostel 裝到你的電腦上。接著 <code>zerostel install</code> 會替找到的每個 agent 加上 hook。</p>
+        </div>
+        <ul>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>npm <small>各系統</small></h4>
+          <div class="plug"><code>npx zerostel install</code><button class="copy" type="button" data-copy="npx zerostel install" data-done-label="已複製" aria-label="複製: npm">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Homebrew <small>macOS · Linux</small></h4>
+          <div class="plug"><code>brew install zerostel/tap/zerostel</code><button class="copy" type="button" data-copy="brew install zerostel/tap/zerostel" data-done-label="已複製" aria-label="複製: Homebrew">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Scoop <small>Windows</small></h4>
+          <div class="plug"><code>scoop install zerostel</code><button class="copy" type="button" data-copy="scoop install zerostel" data-done-label="已複製" aria-label="複製: Scoop">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>執行檔 <small>不需要 Node</small></h4>
+          <div class="plug"><a href="https://github.com/zerostel/zerostel/releases">github.com/zerostel/zerostel/releases</a></div>
+        </li>
+        </ul>
+      </div>
+      <div class="bay-row">
+        <div class="bay-head">
+          <h3>裝進 agent 裡</h3>
+          <p>Claude Code 的外掛自己就會錄製；其他外掛加上的是 Skill，錄製還是靠 <code>zerostel install</code>（Codex 要用 <code>/hooks</code> 核准新的 hook）。</p>
+        </div>
+        <ul>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Claude Code <small>外掛</small></h4>
+          <div class="plug"><code>/plugin install zerostel@zerostel</code><button class="copy" type="button" data-copy="/plugin install zerostel@zerostel" data-done-label="已複製" aria-label="複製: Claude Code">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Codex <small>外掛</small></h4>
+          <div class="plug"><code>codex plugin marketplace add zerostel/zerostel</code><button class="copy" type="button" data-copy="codex plugin marketplace add zerostel/zerostel" data-done-label="已複製" aria-label="複製: Codex">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Antigravity <small>外掛</small></h4>
+          <div class="plug"><code>agy plugin install https://github.com/zerostel/zerostel</code><button class="copy" type="button" data-copy="agy plugin install https://github.com/zerostel/zerostel" data-done-label="已複製" aria-label="複製: Antigravity">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Gemini CLI <small>擴充</small></h4>
+          <div class="plug"><code>gemini extensions install https://github.com/zerostel/zerostel</code><button class="copy" type="button" data-copy="gemini extensions install https://github.com/zerostel/zerostel" data-done-label="已複製" aria-label="複製: Gemini CLI">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Agent Skill <small>SKILL.md</small></h4>
+          <div class="plug"><code>npx skills add zerostel/zerostel</code><button class="copy" type="button" data-copy="npx skills add zerostel/zerostel" data-done-label="已複製" aria-label="複製: Agent Skill">複製</button></div>
+        </li>
+        </ul>
+      </div>
+      <div class="bay-row">
+        <div class="bay-head">
+          <h3>在 agent 旁邊</h3>
+          <p>MCP 讓 agent 能讀自己的時間軸、照你的要求倒帶；Action 在 CI 裡錄製 agent；<code>zerostel run</code> 監看其他任何工具，只記檔案、沒有防護規則。</p>
+        </div>
+        <ul>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>MCP <small>io.github.zerostel/zerostel</small></h4>
+          <div class="plug"><code>claude mcp add zerostel -- zerostel mcp</code><button class="copy" type="button" data-copy="claude mcp add zerostel -- zerostel mcp" data-done-label="已複製" aria-label="複製: MCP">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>GitHub Actions <small>CI</small></h4>
+          <div class="plug"><code>uses: zerostel/zerostel@v0</code><button class="copy" type="button" data-copy="uses: zerostel/zerostel@v0" data-done-label="已複製" aria-label="複製: GitHub Actions">複製</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>其他任何 CLI <small>檔案監看</small></h4>
+          <div class="plug"><code>zerostel run -- &lt;command&gt;</code><button class="copy" type="button" data-copy="zerostel run -- &lt;command&gt;" data-done-label="已複製" aria-label="複製: 其他任何 CLI">複製</button></div>
+        </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 02 · 功能</span>
+    <h2 id="how-h">agent 動作很快，出錯也很快。</h2>
+    <p class="sub">一個被刪掉的資料夾、一次對整個 repo 的 <code>sed -i</code>、跑了兩次的資料庫遷移。有些 agent 的 checkpoint 完全看不到 shell 指令，而且每家的復原方式都不一樣。Zerostel 給你一份紀錄、一條回去的路，不管是哪個 agent 做的。</p>
+    <div class="grid g4">
+      <div class="card">
+        <div class="icon" aria-hidden="true">●</div>
+        <h3>記錄</h3>
+        <p>每個提示、工具呼叫、指令、檔案變化、耗時和 token，每個 session 一條時間軸。</p>
+        <pre>zerostel log</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">↺</div>
+        <h3>倒帶</h3>
+        <p>每次可能改檔案的工具呼叫前後都拍快照。可以撤銷一輪、回到任何一步，或一路回到零點。</p>
+        <pre>zerostel rewind 0</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">⊘</div>
+        <h3>防護</h3>
+        <p>你自己定的規則，會在工具執行前擋下它，或讓 agent 先問你。所有 agent 共用同一套。</p>
+        <pre>zerostel policy init</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">✓</div>
+        <h3>分享與驗證</h3>
+        <p>每個 session 一個 HTML 報告，有分享用的隱私模式；紀錄用雜湊串鏈，被改過一驗就知道。</p>
+        <pre>zerostel report --share</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="zero-trust" aria-labelledby="zt-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 03 · 零信任</span>
+    <h2 id="zt-h">零信任，實際上做了什麼</h2>
+    <p class="sub">不要因為 agent 平常都很乖就信任它。假設它會出錯，看見它做的每件事，並且保留一條回去的路。</p>
+    <div class="scroll">
+      <table class="table">
+        <thead><tr><th scope="col">原則</th><th scope="col">Zerostel 怎麼做</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">假設一定會出事</th><td>專案的第一次快照完成後，每次可能改檔案的工具呼叫前後都拍快照，每次倒帶本身也能再撤銷。</td></tr>
+          <tr><th scope="row">看見一切</th><td>提示、工具呼叫、指令、檔案和時間，agent 有回報的話還有 token，在終端機或本機網頁都看得到。</td></tr>
+          <tr><th scope="row">紀錄可驗證</th><td>每一行紀錄都用帶金鑰的雜湊和前一行串起來。<code>zerostel verify</code> 會指出哪一行被改過、刪掉或調換。</td></tr>
+          <tr><th scope="row">最小權限</th><td>防護規則在工具執行前擋下或先問：憑證、強制推送、全域安裝、部署。規則由你決定。</td></tr>
+          <tr><th scope="row">限制損害範圍</th><td>倒帶涵蓋專案、你指定的檔案（例如 <code>~/.zshrc</code>）和 Windows 使用者環境變數；收不回來的事，會列出撤銷用的指令。</td></tr>
+          <tr><th scope="row">不信任讀到的任何東西</th><td>把每個專案都當作有惡意：不執行專案裡的程式、不跟著連結跑出專案、濾掉終端控制碼。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">它不是沙盒：網路請求、部署都撤不回來；agent 用你的帳號執行，你能做的事它也能做。這些<a href="https://github.com/zerostel/zerostel/blob/main/README.zh-TW.md#限制">限制</a>都寫得清清楚楚，沒有藏起來。</p>
+  </div>
+</section>
+
+<section id="security" aria-labelledby="sec-h">
+  <div class="wrap shield">
+    <div>
+      <span class="ch" aria-hidden="true">CH 04 · 資安</span>
+    <h2 id="sec-h">資安工具，就該用「被攻擊」的標準來做</h2>
+      <p class="sub">Zerostel 跑在你啟動的每一個 agent session 裡，處理的是你沒寫過的專案。所以它把每個專案都當成對手。</p>
+      <ul class="checks">
+        <li><b>所有資料都留在你的電腦。</b>不用帳號、沒有雲端、不收集任何資料。在 macOS 和 Linux 上 <code>~/.zerostel</code> 只有你自己能讀；在 Windows 上它放在你私人的使用者資料夾裡。</li>
+        <li><b>零執行期相依套件。</b>一個打包好的檔案加上 git；或是內含 Node 的單一執行檔。</li>
+        <li><b>絕不執行 repo 附帶的程式。</b>git 和其他輔助程式一律用絕對路徑找，跳過專案資料夾和任何 <code>node_modules</code>。</li>
+        <li><b>倒帶不會越界。</b>不跟著 symlink 或 junction 跑出專案；沒有備份的東西絕不刪除。</li>
+        <li><b>反覆審查，也坦白說明限制。</b>經過多輪、不只一方的資安審查，找到的問題都修正並加上回歸測試。<a href="https://github.com/zerostel/zerostel/blob/main/docs/security-model.md">安全模型</a>寫清楚它保護什麼、不保護什麼。</li>
+        <li><b>發布過程可追溯。</b>npm 套件由 CI 建置並帶 provenance 發布；沒有 provenance 的話，套件本身會拒絕發布。</li>
+      </ul>
+    </div>
+    <figure class="term" aria-label="防護規則實際運作">
+      <div class="term-bar" aria-hidden="true"><span></span><span></span><span></span><b>guardrails</b></div>
+      <pre><span class="l"><span class="c-dim">$</span> zerostel policy test "cat ~/.aws/credentials"</span>
+<span class="l"><span class="c-r">✗ blocked by rule 1:</span> credentials, and Zerostel's</span>
+<span class="l">  own records, are off limits</span>
+<span class="l"> </span>
+<span class="l"><span class="c-dim">$</span> zerostel policy test "git push --force origin main"</span>
+<span class="l"><span class="c-y">? asks first (rule 3):</span> rewrites or throws away</span>
+<span class="l">  git history</span>
+<span class="l"> </span>
+<span class="l"><span class="c-dim">$</span> zerostel verify</span>
+<span class="l"><span class="c-g">✓</span> claude-code 4f2a91c0  214 events · chain intact</span></pre>
+    </figure>
+  </div>
+</section>
+
+<section class="alt" aria-labelledby="cmp-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 05 · 比較</span>
+    <h2 id="cmp-h">跟其他做法比較</h2>
+    <p class="sub">agent 自帶的 checkpoint 和 git 照樣用，兩者不衝突。Zerostel 補上的是「每個 agent 都一樣」的那部分。</p>
+    <div class="scroll">
+      <table class="table">
+        <thead><tr><th scope="col"></th><th scope="col">agent 自帶的 checkpoint</th><th scope="col">commit／stash</th><th scope="col">Zerostel</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">shell 指令造成的變化</th><td>看 agent</td><td>你用 commit 或 stash 存下的</td><td class="yes">專案內全部</td></tr>
+          <tr><th scope="row">回到指定的某一步</th><td>通常以提示為單位</td><td>以 commit 為單位</td><td class="yes">每次工具呼叫</td></tr>
+          <tr><th scope="row">含 token 和時間的時間軸</th><td>部分</td><td class="no">沒有</td><td class="yes">有</td></tr>
+          <tr><th scope="row">工具執行前套用你的規則</th><td>各家不同</td><td class="no">沒有</td><td class="yes">所有 agent 一致</td></tr>
+          <tr><th scope="row">紀錄能看出被改過</th><td class="no">不行</td><td>可以</td><td class="yes">可以</td></tr>
+          <tr><th scope="row">會動到你的 .git</th><td>有些會</td><td>會</td><td class="yes">絕不</td></tr>
+          <tr><th scope="row">可分享的工作報告</th><td>看 agent</td><td class="no">沒有</td><td class="yes">有</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="faq-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 06 · 常見問題</span>
+    <h2 id="faq-h">常見問題</h2>
+    <details><summary>git 不就夠了？</summary><p>git 只保存你 commit 的東西。agent 在 commit 之間就會改檔案，而且常透過 shell 指令，沒人會在每次工具呼叫前 commit。Zerostel 自動做這件事，而且存在自己的 repository，不弄亂你的歷史。</p></details>
+    <details><summary>undo 會把 agent 做的事全部撤回嗎？</summary><p>不會。它把有拍到的檔案放回去：專案和你指定的檔案。網路請求、部署、資料庫寫入，任何一台筆電上的工具都收不回來，所以入門規則會在做這些事之前先問你。</p></details>
+    <details><summary>會拖慢 agent 嗎？</summary><p>在開新程序最慢的 Windows 11 上量：只讀取的工具呼叫約 0.16 秒，會改檔的約 1 到 2 秒（前後各拍一次快照）。專案的第一次快照要把每個檔案讀一遍（1,000 個檔案 3 秒、5 萬個 5 分鐘），它在 session 開始時就在背景進行，agent 不用等。<code>scripts/bench.mjs</code> 可以量你自己的電腦。</p></details>
+    <details><summary>我的資料會傳到哪裡？</summary><p>哪裡都不會。快照和紀錄都存在你電腦的 <code>~/.zerostel</code>。報告是你自己決定要不要分享的檔案，分享模式不含提示、指令、輸出和 diff。</p></details>
+    <details><summary>agent 自己也能用嗎？</summary><p>可以。<code>zerostel mcp</code> 是一個 MCP server：agent 可以在做危險動作前存檢查點、看自己的時間軸，在你要求時倒帶，而且會先給你看預覽。</p></details>
+    <p class="why-name">名字的由來：<b>Zero</b> trust（零信任）＋ <b>Stella</b>（星辰）。AI agent 像星星一樣越來越多；Zerostel 是它們最後都會回到的那一點。</p>
+  </div>
+</section>
+
+<section class="alt final" aria-labelledby="go-h">
+  <div class="wrap">
+    <h2 id="go-h">幫你的 agent 裝上行車紀錄器</h2>
+    <p class="sub">需要 Node 20 以上和 git。支援 Windows、macOS、Linux。</p>
+    <div class="install">
+      <span class="prompt">$</span>
+      <code>npx zerostel install</code>
+      <button class="copy" type="button" data-copy="npx zerostel install" data-done-label="已複製" aria-label="複製安裝指令">複製</button>
+    </div>
+    <div class="ctas">
+      <a class="btn primary" href="https://github.com/zerostel/zerostel/blob/main/README.zh-TW.md">閱讀文件</a>
+      <a class="btn ghost" href="https://github.com/zerostel/zerostel">GitHub</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Zerostel · Apache-2.0</span>
+    <nav aria-label="頁尾">
+      <a href="https://github.com/zerostel/zerostel">GitHub</a>
+      <a href="https://github.com/zerostel/zerostel/blob/main/SECURITY.md">資安回報</a>
+      <a href="/.well-known/security.txt">security.txt</a>
+      <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

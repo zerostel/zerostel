@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zerostel.com/schema/policy.json",
+  "title": "Zerostel guardrails (~/.zerostel/policy.json)",
+  "description": "Rules that stop a tool call, or make the agent ask you first, before it runs. Deny wins over ask.",
+  "type": "object",
+  "required": ["rules"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "globs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["action"],
+      "anyOf": [{ "required": ["paths"] }, { "required": ["commands"] }, { "required": ["tools"] }],
+      "properties": {
+        "action": {
+          "enum": ["deny", "ask"],
+          "description": "deny: the tool call never runs and the agent is told why. ask: Claude Code asks you; agents that can't ask block it and say so."
+        },
+        "paths": {
+          "$ref": "#/$defs/globs",
+          "description": "Files a tool names, including paths in shell commands. ~/ is your home folder; other relative globs start at the project root. ** crosses folders, * doesn't; dir/** includes dir itself.",
+          "examples": [["~/.ssh/**", "**/.env"]]
+        },
+        "commands": {
+          "$ref": "#/$defs/globs",
+          "description": "Each part of a shell command (split at && || ; | & ( ) $( ) and backticks), case-insensitive. * matches anything.",
+          "examples": [["git push --force*", "terraform apply*"]]
+        },
+        "tools": {
+          "$ref": "#/$defs/globs",
+          "description": "Tool names, e.g. WebFetch or mcp__github__delete_*.",
+          "examples": [["mcp__*__delete_*"]]
+        },
+        "access": {
+          "enum": ["write", "any"],
+          "default": "any",
+          "description": "write: paths only count for tools that can change files."
+        },
+        "reason": { "type": "string", "maxLength": 300, "description": "Shown to the agent and in the timeline." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

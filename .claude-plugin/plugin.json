@@ -1,0 +1,24 @@
+{
+  "name": "zerostel",
+  "displayName": "Zerostel",
+  "version": "0.1.0",
+  "description": "Rewind any AI agent to point zero. Records every step, rewinds to any of them, enforces your guardrails and keeps a log you can verify. Local, no telemetry.",
+  "author": {
+    "name": "Zerostel",
+    "email": "hello@zerostel.com",
+    "url": "https://zerostel.com"
+  },
+  "homepage": "https://zerostel.com",
+  "repository": "https://github.com/zerostel/zerostel",
+  "license": "Apache-2.0",
+  "keywords": [
+    "rewind",
+    "undo",
+    "checkpoint",
+    "audit",
+    "guardrails",
+    "zero-trust",
+    "timeline"
+  ],
+  "hooks": "./hooks/claude-code.json"
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.zerostel/zerostel",
+  "title": "Zerostel",
+  "description": "Checkpoints, timeline and rewind for AI coding agents. Local, no telemetry.",
+  "websiteUrl": "https://zerostel.com",
+  "repository": {
+    "url": "https://github.com/zerostel/zerostel",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "zerostel",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

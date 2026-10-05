@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zerostel.com/schema/config.json",
+  "title": "Zerostel settings (~/.zerostel/config.json)",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "maxFileMB": { "type": "number", "exclusiveMinimum": 0, "default": 25, "description": "New files above this size aren't snapshotted." },
+    "snapshotTimeoutSec": { "type": "number", "exclusiveMinimum": 0, "default": 20, "description": "If one snapshot takes longer, snapshots pause for an hour in that project." },
+    "retentionDays": { "type": "number", "exclusiveMinimum": 0, "default": 30, "description": "What zerostel prune removes by default." },
+    "exclude": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Git pathspec globs that are never snapshotted." },
+    "watch": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1023 },
+      "default": [],
+      "description": "Files under your home folder to snapshot and rewind with every project, e.g. ~/.zshrc (up to 1 MB each).",
+      "examples": [["~/.zshrc", "~/.gitconfig"]]
+    }
+  },
+  "additionalProperties": false
+}

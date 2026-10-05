@@ -1,0 +1,32 @@
+name: Bug report
+description: Something didn't record, rewind or report the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `zerostel doctor`
+      description: Home paths are already shortened to ~. Check it before pasting.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Timeline, if it helps
+      description: "`zerostel log -n 20`, or attach `zerostel report --share`. Please don't paste reports made without --share."
+      render: text
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options: [Claude Code, Codex, Cursor, Copilot CLI, Gemini CLI, Antigravity, opencode, DeepSeek Harness, zerostel run, other]
+    validations:
+      required: true

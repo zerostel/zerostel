@@ -1,0 +1,68 @@
+{
+  "name": "zerostel",
+  "version": "0.1.0",
+  "description": "Rewind any AI agent to point zero. A flight recorder and time machine for Claude Code, Codex, Cursor and other coding agents.",
+  "keywords": [
+    "ai-agent",
+    "claude-code",
+    "codex",
+    "cursor",
+    "gemini-cli",
+    "checkpoint",
+    "rewind",
+    "undo",
+    "snapshot",
+    "timeline",
+    "agent-observability"
+  ],
+  "license": "Apache-2.0",
+  "author": "niansia <hello@zerostel.com>",
+  "homepage": "https://github.com/zerostel/zerostel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zerostel/zerostel.git"
+  },
+  "bugs": "https://github.com/zerostel/zerostel/issues",
+  "mcpName": "io.github.zerostel/zerostel",
+  "type": "module",
+  "bin": {
+    "zerostel": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.zh-TW.md",
+    "README.zh-CN.md",
+    "README.ja.md",
+    "LICENSE",
+    ".claude-plugin/plugin.json",
+    "hooks/claude-code.json",
+    "plugin.json",
+    "skills"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup && node -e \"require('fs').copyFileSync('scripts/zerostel.cmd','dist/zerostel.cmd')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "smoke": "npm run build && node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "postject": "1.0.0-alpha.6",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2"
+  },
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  }
+}

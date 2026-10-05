@@ -1,0 +1,33 @@
+# Changelog
+
+## 0.1.0 (2026-10-05)
+
+Record
+
+- Record Claude Code and Codex sessions through their hooks: prompts, tool calls, file changes, durations and token usage.
+- Also records Cursor, Copilot CLI, opencode, Gemini CLI and Antigravity (CLI, desktop and IDE), each tested on Windows.
+- Experimental support for DeepSeek Harness, through a native plugin, tested end to end.
+- `zerostel run -- <command>` records any other agent or script by watching file changes.
+- Snapshots in a separate shadow git repo per project; the project's own `.git` is never touched.
+- Files outside the project (`watch` in config.json), global package installs and Windows user environment variables are recorded too.
+
+Look and go back
+
+- `log`, `sessions`, `show`, `diff` and `find` to look at what happened; `ui` for the same in a local web page.
+- `undo`, `rewind <n>` (with `--after`, `--only`, `--dry-run`) and `snapshot` to go back; every rewind can itself be undone.
+- `report` exports a session as a single HTML page with secrets masked; `--share` leaves out prompts, commands, output and diffs.
+- `zerostel demo` sets up a throwaway project with one recorded agent turn to try it on.
+
+Zero trust
+
+- Guardrails in `~/.zerostel/policy.json` block a tool call, or make the agent ask first, before it runs. `policy init` writes a starter set, `policy test` shows what a command would hit.
+- The starter rules ask before an agent uninstalls Zerostel or edits its own hook settings, and hooks removed mid-session are written into the log.
+- Each session log is chained with a keyed hash; `zerostel verify` says which line was edited, removed or reordered.
+
+Everywhere
+
+- `zerostel mcp`: an MCP server with checkpoint, timeline, rewind (preview first), verify and policy checks.
+- A Claude Code plugin, a Codex plugin, a Gemini CLI extension and a shared agent skill; an MCP Registry entry.
+- A GitHub Action that records agents in CI, applies the guardrails and attaches the report.
+- Standalone executables with Node inside for Windows, macOS and Linux on x64 and arm64, with build provenance.
+- Tab completion for bash, zsh, fish and PowerShell; JSON schemas for policy.json and config.json.

@@ -1,0 +1,18 @@
+{
+  "version": "__VERSION__",
+  "description": "Rewind any AI coding agent to point zero. Flight recorder and time machine for Claude Code, Codex and other agents.",
+  "homepage": "https://github.com/zerostel/zerostel",
+  "license": "Apache-2.0",
+  "depends": ["nodejs-lts", "git"],
+  "url": "https://registry.npmjs.org/zerostel/-/zerostel-__VERSION__.tgz",
+  "hash": "__SHA256__",
+  "extract_dir": "package",
+  "bin": "dist\\zerostel.cmd",
+  "checkver": {
+    "url": "https://registry.npmjs.org/zerostel/latest",
+    "jsonpath": "$.version"
+  },
+  "autoupdate": {
+    "url": "https://registry.npmjs.org/zerostel/-/zerostel-$version.tgz"
+  }
+}

@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Zerostel · Rewind any AI agent to point zero</title>
+<meta name="description" content="Zero trust for AI coding agents. Zerostel records every step Claude Code, Codex, Cursor and other agents take, rewinds your project to any of them, enforces your own guardrails, and keeps a log you can verify. Local, open source, no telemetry.">
+<link rel="canonical" href="https://zerostel.com/">
+<link rel="alternate" hreflang="en" href="https://zerostel.com/">
+<link rel="alternate" hreflang="zh-Hant" href="https://zerostel.com/zh-tw/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/assets/icon-256.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Zerostel · Rewind any AI agent to point zero">
+<meta property="og:description" content="Zero trust for AI coding agents: assume they'll break something, record every step, and rewind the files they touched.">
+<meta property="og:url" content="https://zerostel.com/">
+<meta property="og:image" content="https://zerostel.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#19242d">
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Zerostel home">
+      <img class="logo-light" src="/assets/logo-light.svg" alt="Zerostel" width="114" height="26">
+      <img class="logo-dark" src="/assets/logo-dark.svg" alt="Zerostel" width="114" height="26">
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#zero-trust">Zero trust</a>
+      <a class="hide-sm" href="#security">Security</a>
+      <a class="lang" href="/zh-tw/" hreflang="zh-Hant" lang="zh-Hant">繁中</a>
+      <a class="gh" href="https://github.com/zerostel/zerostel">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Open source · local · no telemetry</span>
+      <h1>Rewind any AI agent to <em>point zero</em>.</h1>
+      <p class="lead">Zero trust for AI coding agents: assume they'll break something, record every step, and rewind the files they touched. One timeline, one undo and one set of guardrails for Claude Code, Codex, Cursor and more.</p>
+      <div class="install">
+        <span class="prompt">$</span>
+        <code>npx zerostel install</code>
+        <button class="copy" type="button" data-copy="npx zerostel install" aria-label="Copy the install command">Copy</button>
+      </div>
+      <p class="small">Try it first without an agent or your own project: <code>npx zerostel demo</code>. Or <a href="#rec-title" class="jump">play with the example</a>.</p>
+      <div class="ctas">
+        <a class="btn primary" href="https://github.com/zerostel/zerostel#readme">Get started</a>
+        <a class="btn ghost" href="https://github.com/zerostel/zerostel">Star on GitHub</a>
+      </div>
+    </div>
+
+    <figure class="rec" aria-labelledby="rec-title">
+      <div class="rec-head" aria-hidden="true"><span class="rec-dot"></span><b>REC</b><span>claude code · ~/shop-api</span><span class="rec-clock">00:07.9</span></div>
+      <p class="rec-title" id="rec-title"><span class="tag">Interactive example</span> An agent session, recorded. Drag to rewind it.</p>
+      <ol class="rec-steps">
+        <li data-step="1"><span class="n">#1</span><span class="k c-c">❯</span><span class="s"><b>Remove the old auth code</b></span></li>
+        <li data-step="2"><span class="n">#2</span><span class="k">$</span><span class="s">npm test</span><span class="b ok">pass</span></li>
+        <li data-step="3"><span class="n">#3</span><span class="k">·</span><span class="s dim">Read src/app.ts</span></li>
+        <li data-step="4"><span class="n">#4</span><span class="k">✎</span><span class="s">Edit src/app.ts</span><span class="b">+1 −2</span></li>
+        <li data-step="5"><span class="n">#5</span><span class="k">$</span><span class="s">rm -rf src/legacy</span><span class="b bad">3 deleted ⚠</span></li>
+        <li data-step="6"><span class="n">#6</span><span class="k c-r">✗</span><span class="s">npm test</span><span class="b bad">fail</span></li>
+      </ol>
+      <div class="rec-scrub">
+        <label for="scrub">Project as of: <output id="scrub-out" for="scrub">now</output></label>
+        <input id="scrub" type="range" min="1" max="7" step="1" value="7" data-now="now" data-before="before step #">
+      </div>
+      <div class="rec-files" aria-live="polite">
+        <p class="rec-files-h">Files in the project</p>
+        <ul>
+          <li data-file="app">src/app.ts <em data-state></em></li>
+          <li>src/cart.ts</li>
+          <li data-file="legacy">src/legacy/auth.ts <em data-state></em></li>
+          <li data-file="legacy">src/legacy/session.ts <em data-state></em></li>
+          <li data-file="legacy">src/legacy/tokens.ts <em data-state></em></li>
+        </ul>
+        <p class="rec-status" id="rec-status">Now: src/legacy is gone and the tests fail.</p>
+      </div>
+      <button class="rec-zero" type="button" data-zero>↺ Back to point zero</button>
+      <template id="rec-text"><span data-k="modified">modified</span><span data-k="deleted">deleted</span><span data-k="back">restored</span><span data-k="now">Now: src/legacy is gone and the tests fail.</span><span data-k="past">Rewound: steps after this point are undone, and can be redone.</span><span data-k="undone">undone</span><span data-k="zeroName">Point zero</span><span data-k="zero">Point zero: the project as it was before the agent started.</span></template>
+    </figure>
+  </div>
+</section>
+
+<section class="alt" aria-labelledby="agents-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 00 · Agents</span>
+    <h2 id="agents-h">Works with the agents you already use</h2>
+    <p class="sub">Hooks for each agent, the same timeline and rules for all of them, and a file watcher for anything else. Whatever model is behind the agent: Claude, GPT, Gemini, DeepSeek or a local one.</p>
+    <div class="agents">
+      <span class="agent">Claude Code</span>
+      <span class="agent">Codex</span>
+      <span class="agent">Cursor</span>
+      <span class="agent">Copilot CLI</span>
+      <span class="agent">Antigravity</span>
+      <span class="agent">Gemini CLI <small>enterprise</small></span>
+      <span class="agent">opencode</span>
+      <span class="agent">DeepSeek Harness <small>experimental</small></span>
+      <span class="agent">Anything else <small>zerostel run</small></span>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="ports-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 01 · Patch bay</span>
+    <h2 id="ports-h">Plug it in wherever you work</h2>
+    <p class="sub">A command for your terminal, a plugin or extension inside the agent, a server the agent can call, a step in CI. Every route ends at the same recorder and the same rules on your machine.</p>
+    <div class="bay">
+      <div class="bay-row">
+        <div class="bay-head">
+          <h3>Install</h3>
+          <p>Puts Zerostel on your machine. Then <code>zerostel install</code> adds the hooks to every agent it finds.</p>
+        </div>
+        <ul>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>npm <small>any OS</small></h4>
+          <div class="plug"><code>npx zerostel install</code><button class="copy" type="button" data-copy="npx zerostel install" data-done-label="Copied" aria-label="Copy: npm">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Homebrew <small>macOS · Linux</small></h4>
+          <div class="plug"><code>brew install zerostel/tap/zerostel</code><button class="copy" type="button" data-copy="brew install zerostel/tap/zerostel" data-done-label="Copied" aria-label="Copy: Homebrew">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Scoop <small>Windows</small></h4>
+          <div class="plug"><code>scoop install zerostel</code><button class="copy" type="button" data-copy="scoop install zerostel" data-done-label="Copied" aria-label="Copy: Scoop">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Executable <small>no Node needed</small></h4>
+          <div class="plug"><a href="https://github.com/zerostel/zerostel/releases">github.com/zerostel/zerostel/releases</a></div>
+        </li>
+        </ul>
+      </div>
+      <div class="bay-row">
+        <div class="bay-head">
+          <h3>Inside the agent</h3>
+          <p>Claude Code's plugin records on its own. The others add the skill; recording still comes from <code>zerostel install</code> (Codex asks you to approve new hooks with <code>/hooks</code>).</p>
+        </div>
+        <ul>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Claude Code <small>plugin</small></h4>
+          <div class="plug"><code>/plugin install zerostel@zerostel</code><button class="copy" type="button" data-copy="/plugin install zerostel@zerostel" data-done-label="Copied" aria-label="Copy: Claude Code">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Codex <small>plugin</small></h4>
+          <div class="plug"><code>codex plugin marketplace add zerostel/zerostel</code><button class="copy" type="button" data-copy="codex plugin marketplace add zerostel/zerostel" data-done-label="Copied" aria-label="Copy: Codex">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Antigravity <small>plugin</small></h4>
+          <div class="plug"><code>agy plugin install https://github.com/zerostel/zerostel</code><button class="copy" type="button" data-copy="agy plugin install https://github.com/zerostel/zerostel" data-done-label="Copied" aria-label="Copy: Antigravity">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Gemini CLI <small>extension</small></h4>
+          <div class="plug"><code>gemini extensions install https://github.com/zerostel/zerostel</code><button class="copy" type="button" data-copy="gemini extensions install https://github.com/zerostel/zerostel" data-done-label="Copied" aria-label="Copy: Gemini CLI">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Agent skill <small>SKILL.md</small></h4>
+          <div class="plug"><code>npx skills add zerostel/zerostel</code><button class="copy" type="button" data-copy="npx skills add zerostel/zerostel" data-done-label="Copied" aria-label="Copy: Agent skill">Copy</button></div>
+        </li>
+        </ul>
+      </div>
+      <div class="bay-row">
+        <div class="bay-head">
+          <h3>Around the agent</h3>
+          <p>MCP lets the agent read its own timeline and rewind on request. The Action records agents in CI. <code>zerostel run</code> watches any other tool: files only, no guardrails.</p>
+        </div>
+        <ul>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>MCP <small>io.github.zerostel/zerostel</small></h4>
+          <div class="plug"><code>claude mcp add zerostel -- zerostel mcp</code><button class="copy" type="button" data-copy="claude mcp add zerostel -- zerostel mcp" data-done-label="Copied" aria-label="Copy: MCP">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>GitHub Actions <small>CI</small></h4>
+          <div class="plug"><code>uses: zerostel/zerostel@v0</code><button class="copy" type="button" data-copy="uses: zerostel/zerostel@v0" data-done-label="Copied" aria-label="Copy: GitHub Actions">Copy</button></div>
+        </li>
+        <li class="port">
+          <span class="jack" aria-hidden="true"></span>
+          <h4>Any other CLI <small>file watcher</small></h4>
+          <div class="plug"><code>zerostel run -- &lt;command&gt;</code><button class="copy" type="button" data-copy="zerostel run -- &lt;command&gt;" data-done-label="Copied" aria-label="Copy: Any other CLI">Copy</button></div>
+        </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 02 · What it does</span>
+    <h2 id="how-h">Agents move fast. So do their mistakes.</h2>
+    <p class="sub">A deleted folder, a <code>sed -i</code> across the repo, a migration that ran twice. Some agents' checkpoints don't see shell commands at all, and every agent has its own idea of undo. Zerostel gives you one record and one way back, whichever agent did it.</p>
+    <div class="grid g4">
+      <div class="card">
+        <div class="icon" aria-hidden="true">●</div>
+        <h3>Record</h3>
+        <p>Every prompt, tool call, command, file change, duration and token count, in one timeline per session.</p>
+        <pre>zerostel log</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">↺</div>
+        <h3>Rewind</h3>
+        <p>A snapshot around every tool call that can change files. Undo a turn, go back to any step, or all the way to point zero.</p>
+        <pre>zerostel rewind 0</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">⊘</div>
+        <h3>Guard</h3>
+        <p>Your own rules stop a tool call, or make the agent ask you first, before it runs. Same rules for every agent.</p>
+        <pre>zerostel policy init</pre>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">✓</div>
+        <h3>Share and verify</h3>
+        <p>One HTML page per session, with a privacy mode for sharing, and a hash-chained log that shows if it was edited.</p>
+        <pre>zerostel report --share</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="zero-trust" aria-labelledby="zt-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 03 · Zero trust</span>
+    <h2 id="zt-h">Zero trust, in practice</h2>
+    <p class="sub">Don't trust an agent because it usually behaves. Assume it can go wrong, see everything it does, and keep a way back.</p>
+    <div class="scroll">
+      <table class="table">
+        <thead><tr><th scope="col">Principle</th><th scope="col">What Zerostel does</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Assume breach</th><td>Snapshots before and after every tool call that can change files, once a project's first snapshot is done. Every rewind can itself be undone.</td></tr>
+          <tr><th scope="row">See everything</th><td>Prompts, tool calls, commands, files and time, plus tokens where the agent reports them, in a timeline you can read in the terminal or a local web page.</td></tr>
+          <tr><th scope="row">Verify the record</th><td>Each log line is chained to the one before with a keyed hash. <code>zerostel verify</code> says which line was edited, removed or reordered.</td></tr>
+          <tr><th scope="row">Least privilege</th><td>Guardrails deny or ask before a tool runs: credentials, force pushes, global installs, deploys. You write the rules.</td></tr>
+          <tr><th scope="row">Limit the blast radius</th><td>Rewinds cover the project, files you list (like <code>~/.zshrc</code>) and Windows user environment variables. What can't be undone is listed with the commands that would.</td></tr>
+          <tr><th scope="row">Trust nothing it reads</th><td>Every project is treated as hostile: no programs run from it, no links followed out of it, terminal escape codes stripped.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">It isn't a sandbox: it can't undo a network request or a deploy, and an agent running as you can still do what you can do. The <a href="https://github.com/zerostel/zerostel#limits">limits</a> are written down, not hidden.</p>
+  </div>
+</section>
+
+<section id="security" aria-labelledby="sec-h">
+  <div class="wrap shield">
+    <div>
+      <span class="ch" aria-hidden="true">CH 04 · Security</span>
+    <h2 id="sec-h">A security tool should be built like it's under attack</h2>
+      <p class="sub">Zerostel runs inside every agent session you start, in projects you didn't write. So it treats each of them as an adversary.</p>
+      <ul class="checks">
+        <li><b>Everything stays on your machine.</b> No account, no cloud, no telemetry. On macOS and Linux <code>~/.zerostel</code> is readable only by you; on Windows it lives in your private user profile.</li>
+        <li><b>Zero runtime dependencies.</b> One bundled file, plus git. Or a single executable with Node inside.</li>
+        <li><b>Never runs what a repo ships.</b> git and other helpers are found by absolute path, skipping the project folder and any <code>node_modules</code>.</li>
+        <li><b>Rewinds stay inside the lines.</b> No following symlinks or junctions out of the project; nothing deleted that isn't backed up.</li>
+        <li><b>Reviewed, and honest about limits.</b> Reviewed in several rounds, by more than one reviewer; findings are fixed with a regression test. The <a href="https://github.com/zerostel/zerostel/blob/main/docs/security-model.md">security model</a> says what it protects and what it doesn't.</li>
+        <li><b>Releases you can trace.</b> npm packages are built and published by CI with provenance, and the package refuses to publish without it.</li>
+      </ul>
+    </div>
+    <figure class="term" aria-label="Guardrails in action">
+      <div class="term-bar" aria-hidden="true"><span></span><span></span><span></span><b>guardrails</b></div>
+      <pre><span class="l"><span class="c-dim">$</span> zerostel policy test "cat ~/.aws/credentials"</span>
+<span class="l"><span class="c-r">✗ blocked by rule 1:</span> credentials, and Zerostel's</span>
+<span class="l">  own records, are off limits</span>
+<span class="l"> </span>
+<span class="l"><span class="c-dim">$</span> zerostel policy test "git push --force origin main"</span>
+<span class="l"><span class="c-y">? asks first (rule 3):</span> rewrites or throws away</span>
+<span class="l">  git history</span>
+<span class="l"> </span>
+<span class="l"><span class="c-dim">$</span> zerostel verify</span>
+<span class="l"><span class="c-g">✓</span> claude-code 4f2a91c0  214 events · chain intact</span></pre>
+    </figure>
+  </div>
+</section>
+
+<section class="alt" aria-labelledby="cmp-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 05 · Compare</span>
+    <h2 id="cmp-h">How it compares</h2>
+    <p class="sub">Use your agent's own checkpoints and git too; they don't conflict. Zerostel is the part that works the same everywhere.</p>
+    <div class="scroll">
+      <table class="table">
+        <thead><tr><th scope="col"></th><th scope="col">Agent checkpoints</th><th scope="col">Commits / stash</th><th scope="col">Zerostel</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Shell command changes</th><td>depends on the agent</td><td>what you saved with a commit or stash</td><td class="yes">inside the project</td></tr>
+          <tr><th scope="row">Back to a specific step</th><td>usually per prompt</td><td>per commit</td><td class="yes">per tool call</td></tr>
+          <tr><th scope="row">Timeline with tokens and time</th><td>partial</td><td class="no">no</td><td class="yes">yes</td></tr>
+          <tr><th scope="row">Your rules, before a tool runs</th><td>per agent</td><td class="no">no</td><td class="yes">same for every agent</td></tr>
+          <tr><th scope="row">Log that shows edits</th><td class="no">no</td><td>yes</td><td class="yes">yes</td></tr>
+          <tr><th scope="row">Touches your .git</th><td>some do</td><td>yes</td><td class="yes">never</td></tr>
+          <tr><th scope="row">Shareable session report</th><td>varies by agent</td><td class="no">no</td><td class="yes">yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="faq-h">
+  <div class="wrap">
+    <span class="ch" aria-hidden="true">CH 06 · Questions</span>
+    <h2 id="faq-h">Questions</h2>
+    <details><summary>Isn't git enough?</summary><p>Git keeps what you commit. Agents change things between commits, often through shell commands, and nobody commits before every tool call. Zerostel does the equivalent automatically, in a repository of its own, so your history stays clean.</p></details>
+    <details><summary>Does undo reverse everything the agent did?</summary><p>No. It puts captured files back: the project and the files you list. Network requests, deploys and database writes can't be taken back by any tool on your laptop, which is why the starter guardrails ask before those.</p></details>
+    <details><summary>Does it slow the agent down?</summary><p>Measured on Windows 11, where starting processes is slowest: about 0.16 seconds for a tool call that only reads, and 1 to 2 seconds for one that edits, which gets a snapshot before and after. A project's first snapshot reads every file once (3 seconds for 1,000 files, 5 minutes for 50,000); it runs in the background as the session opens, and the agent doesn't wait for it. <code>scripts/bench.mjs</code> measures your machine.</p></details>
+    <details><summary>Where does my data go?</summary><p>Nowhere. Snapshots and logs stay in <code>~/.zerostel</code> on your machine. Reports are files you choose to share, and the share mode leaves out prompts, commands, output and diffs.</p></details>
+    <details><summary>Can the agent use it too?</summary><p>Yes. <code>zerostel mcp</code> is an MCP server: the agent can save a checkpoint before something risky, read its timeline, and rewind when you ask, showing you a preview first.</p></details>
+    <p class="why-name">Why the name: <b>zero</b> trust + <b>stella</b>, the stars. AI agents are multiplying like stars; Zerostel is the single point they all come back to.</p>
+  </div>
+</section>
+
+<section class="alt final" aria-labelledby="go-h">
+  <div class="wrap">
+    <h2 id="go-h">Give your agent a flight recorder</h2>
+    <p class="sub">Node 20+ and git. Windows, macOS and Linux.</p>
+    <div class="install">
+      <span class="prompt">$</span>
+      <code>npx zerostel install</code>
+      <button class="copy" type="button" data-copy="npx zerostel install" aria-label="Copy the install command">Copy</button>
+    </div>
+    <div class="ctas">
+      <a class="btn primary" href="https://github.com/zerostel/zerostel#readme">Read the docs</a>
+      <a class="btn ghost" href="https://github.com/zerostel/zerostel">GitHub</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Zerostel · Apache-2.0</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/zerostel/zerostel">GitHub</a>
+      <a href="https://github.com/zerostel/zerostel/blob/main/SECURITY.md">Security</a>
+      <a href="/.well-known/security.txt">security.txt</a>
+      <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

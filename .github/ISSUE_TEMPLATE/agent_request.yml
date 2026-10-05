@@ -1,0 +1,17 @@
+name: Support another agent
+description: Ask for (or offer) an adapter for an agent that has hooks
+labels: [agent]
+body:
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+    validations:
+      required: true
+  - type: textarea
+    id: hooks
+    attributes:
+      label: Its hook mechanism
+      description: Link to the docs, where the hooks file lives, an example payload. See docs/architecture.md#adding-an-agent for what an adapter needs.
+    validations:
+      required: true

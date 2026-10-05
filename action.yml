@@ -1,0 +1,111 @@
+name: Zerostel
+description: Record an AI coding agent (or any command) in CI, enforce your guardrails, and attach a shareable report.
+author: Zerostel
+branding:
+  icon: rewind
+  color: orange
+
+# Usage (see docs/ci.md):
+#
+#   - uses: zerostel/zerostel@v0
+#     with:
+#       agent: claude-code
+#       run: claude -p "fix the failing test" --permission-mode acceptEdits
+#       policy: .github/zerostel-policy.json
+#
+# Inputs reach the shell only through environment variables, never by being
+# pasted into the script, so a branch name or PR title can't inject commands.
+
+inputs:
+  run:
+    description: The command to run and record.
+    required: true
+  agent:
+    description: Hook the agent in for step-by-step recording and guardrails (claude-code or codex), or "none" to record file changes only.
+    default: none
+  policy:
+    description: Path in the repository to a policy.json with guardrails for this run.
+    default: ''
+  report:
+    description: "share (no prompts, commands, output or diffs), full, or none."
+    default: share
+  version:
+    description: Zerostel version from npm.
+    default: latest
+
+outputs:
+  report:
+    description: Path of the HTML report, if one was written.
+    value: ${{ steps.report.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Zerostel
+      shell: bash
+      env:
+        ZS_VERSION: ${{ inputs.version }}
+      run: |
+        case "$ZS_VERSION" in latest|[0-9]*) ;; *) echo "version must be latest or a version number" >&2; exit 1 ;; esac
+        npm install --global --ignore-scripts "zerostel@$ZS_VERSION"
+        zerostel --version
+
+    - name: Guardrails and hooks
+      shell: bash
+      env:
+        ZS_POLICY: ${{ inputs.policy }}
+        ZS_AGENT: ${{ inputs.agent }}
+      run: |
+        if [ -n "$ZS_POLICY" ]; then
+          mkdir -p "$HOME/.zerostel"
+          cp -- "$ZS_POLICY" "$HOME/.zerostel/policy.json"
+          zerostel policy
+        fi
+        case "$ZS_AGENT" in
+          none) ;;
+          claude-code|codex) zerostel install --agent "$ZS_AGENT" --yes ;;
+          *) echo "agent must be claude-code, codex or none" >&2; exit 1 ;;
+        esac
+
+    - name: Run
+      shell: bash
+      env:
+        ZS_RUN: ${{ inputs.run }}
+        ZS_AGENT: ${{ inputs.agent }}
+      run: |
+        if [ "$ZS_AGENT" = "none" ]; then
+          zerostel run -- bash -c "$ZS_RUN"
+        else
+          bash -c "$ZS_RUN"
+        fi
+
+    - name: Report
+      id: report
+      if: always()
+      shell: bash
+      env:
+        ZS_REPORT: ${{ inputs.report }}
+      run: |
+        {
+          echo '### Zerostel'
+          echo '```'
+          zerostel log --changes 2>&1 | tail -n 60 || true
+          echo
+          zerostel verify 2>&1 || true
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        case "$ZS_REPORT" in
+          none) exit 0 ;;
+          share) flag=--share ;;
+          full) flag= ;;
+          *) echo "report must be share, full or none" >&2; exit 1 ;;
+        esac
+        out="$RUNNER_TEMP/zerostel-report.html"
+        zerostel report $flag -o "$out" && echo "path=$out" >> "$GITHUB_OUTPUT"
+
+    - name: Upload report
+      if: always() && steps.report.outputs.path != ''
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: zerostel-report
+        path: ${{ steps.report.outputs.path }}

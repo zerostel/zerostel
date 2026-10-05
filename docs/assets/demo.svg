@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="430" viewBox="0 0 780 430" role="img" aria-labelledby="title desc">
+  <title id="title">zerostel log and zerostel undo in a terminal</title>
+  <desc id="desc">The timeline shows an agent deleting src/legacy with rm -rf; zerostel undo brings the three files back.</desc>
+  <style>
+    .bg { fill: #16171b; }
+    .bar { fill: #222329; }
+    .t { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #d6d7dc; white-space: pre; }
+    .dim { fill: #7d808a; }
+    .b { font-weight: 700; fill: #f2f2f5; }
+    .cyan { fill: #6cc7d8; }
+    .green { fill: #6bd18a; }
+    .red { fill: #f27770; }
+    .yellow { fill: #e6c068; }
+    .mag { fill: #c792ea; }
+  </style>
+  <rect class="bg" width="780" height="430" rx="10"/>
+  <rect class="bar" width="780" height="30" rx="10"/>
+  <rect class="bar" y="20" width="780" height="10"/>
+  <circle cx="20" cy="15" r="5.5" fill="#ff5f57"/>
+  <circle cx="38" cy="15" r="5.5" fill="#febc2e"/>
+  <circle cx="56" cy="15" r="5.5" fill="#28c840"/>
+  <text x="390" y="19" text-anchor="middle" class="t dim" style="font-size:12px">~/projects/shop</text>
+
+  <text x="20" y="58" class="t"><tspan class="green">$</tspan> zerostel log</text>
+  <text x="20" y="82" class="t"><tspan class="b">Claude Code</tspan><tspan class="dim">  ·  </tspan>clean up the legacy code and make x configurable</text>
+  <text x="20" y="100" class="t dim">started 16:06 · 3m12s · 5 steps · 4 files changed · 49k tokens</text>
+
+  <text x="20" y="128" class="t"><tspan class="dim"> #1  16:06:59</tspan>  <tspan class="cyan">❯</tspan> <tspan class="b">clean up the legacy code and make x configurable</tspan></text>
+  <text x="20" y="148" class="t"><tspan class="dim"> #2  16:06:59</tspan>    <tspan class="dim">Grep "legacy"                        278ms</tspan></text>
+  <text x="20" y="168" class="t"><tspan class="dim"> #3  16:07:00</tspan>    $ rm -rf src/legacy                  <tspan class="dim">532ms</tspan>  3 files  <tspan class="green">+0</tspan> <tspan class="red">−3</tspan>  <tspan class="red">3 deleted  ⚠</tspan></text>
+  <text x="20" y="188" class="t"><tspan class="dim"> #4  16:07:01</tspan>    Edit src/app.ts                      <tspan class="dim">550ms</tspan>  <tspan class="green">+2</tspan> <tspan class="red">−1</tspan></text>
+  <text x="20" y="208" class="t"><tspan class="dim"> #5  16:07:02</tspan>    $ npm test                           <tspan class="dim">401ms</tspan></text>
+  <text x="20" y="228" class="t dim">              └ turn done · 49k tokens</text>
+
+  <text x="20" y="266" class="t"><tspan class="green">$</tspan> zerostel undo</text>
+  <text x="20" y="290" class="t"><tspan class="b">Undo turn #1</tspan>  <tspan class="dim">❯ clean up the legacy code and make x configurable</tspan></text>
+  <text x="20" y="310" class="t">  <tspan class="yellow">restore   </tspan> 1 file      <tspan class="dim">src/app.ts</tspan></text>
+  <text x="20" y="330" class="t">  <tspan class="green">bring back</tspan> 3 files     <tspan class="dim">src/legacy/cart.ts, tax.ts, util.ts</tspan></text>
+  <text x="20" y="354" class="t">Rewind 4 files? <tspan class="dim">[y/N]</tspan> y</text>
+  <text x="20" y="378" class="t"><tspan class="green">✓ Done.</tspan></text>
+  <text x="20" y="398" class="t dim">  Changed your mind? zerostel undo puts it back.</text>
+</svg>

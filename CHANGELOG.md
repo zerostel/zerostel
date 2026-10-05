@@ -2,7 +2,7 @@
 
 ## 0.1.3 (2026-10-05)
 
-Fixes from a security and data-safety review. Nothing to change on your side; the snapshot store updates itself on first use.
+Fixes from a security and data-safety review. After upgrading, run `zerostel install` once more so your agents' hooks run the new version; the snapshot store updates itself on first use.
 
 Rewinds never lose work
 

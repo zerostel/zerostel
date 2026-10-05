@@ -21,7 +21,7 @@ A flight recorder and time machine for coding agents: every step on record, test
 
 </div>
 
-<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo: an agent turn deletes src/legacy with rm -rf and breaks the tests, then npx zerostel undo brings it back" width="800"></p>
+<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo: an agent turn deletes src/legacy with rm -rf and breaks the tests; npx zerostel checks shows the test passed before and fails since; npx zerostel undo brings it back" width="800"></p>
 
 ## Quick start
 

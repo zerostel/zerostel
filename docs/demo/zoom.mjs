@@ -21,18 +21,22 @@ const KEYS = [
   [2.3, 2.0, 760, 460],
   [3.0, 1.0, W / 2, H / 2], // the whole timeline
   [4.0, 1.0, W / 2, H / 2],
-  [4.7, 1.34, 1525, 800], // rm -rf, the failed test
-  [6.6, 1.34, 1525, 800],
-  [7.1, 2.0, 760, 1230], // typing cd at the bottom
-  [8.6, 2.0, 760, 1230],
-  [9.0, 2.0, 760, 460], // ls, then typing `npx zerostel undo`
-  [13.3, 2.0, 760, 460],
-  [14.0, 1.4, 1060, 760], // what undo will bring back, and the question
-  [16.4, 1.4, 1060, 760],
-  [17.0, 1.0, W / 2, H / 2], // done, and the hints
-  [18.6, 1.0, W / 2, H / 2],
-  [19.2, 2.0, 760, 1100], // ls: the files are back
-  [99, 2.0, 760, 1100],
+  [4.7, 1.34, 1525, 800], // rm -rf, the test that passed and then failed
+  [6.8, 1.34, 1525, 800],
+  [7.4, 1.0, W / 2, H / 2], // the hints, zerostel checks first
+  [8.4, 1.0, W / 2, H / 2],
+  [8.9, 2.0, 760, 1230], // typing cd at the bottom
+  [10.2, 2.0, 760, 1230],
+  [10.7, 2.0, 760, 460], // ls, then typing `npx zerostel checks`
+  [15.6, 2.0, 760, 460],
+  [16.2, 1.5, 1000, 560], // passed at #2, failing since; then typing `npx zerostel undo`
+  [20.4, 1.5, 1000, 560],
+  [21.1, 1.4, 1060, 850], // what undo will bring back, and the question
+  [24.4, 1.4, 1060, 850],
+  [25.0, 1.0, W / 2, H / 2], // done, and the hints
+  [27.0, 1.0, W / 2, H / 2],
+  [27.6, 2.0, 760, 1150], // ls: the files are back
+  [99, 2.0, 760, 1150],
 ];
 
 // piecewise smoothstep through the keyframes, as an ffmpeg expression of time T

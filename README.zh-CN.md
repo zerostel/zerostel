@@ -21,7 +21,7 @@ AI 编程 agent 的行车记录仪加时光机：每一步都有记录，测试�
 
 </div>
 
-<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo：agent 用 rm -rf 删掉 src/legacy、测试失败，接着 npx zerostel undo 把文件找回来" width="800"></p>
+<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo：agent 用 rm -rf 删掉 src/legacy、测试失败；npx zerostel checks 显示测试先前通过、之后一直失败；npx zerostel undo 把文件找回来" width="800"></p>
 
 ## 快速开始
 

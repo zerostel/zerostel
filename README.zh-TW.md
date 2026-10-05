@@ -21,7 +21,7 @@ AI coding agent 的行車紀錄器加時光機：每一步都有紀錄，測試�
 
 </div>
 
-<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo：agent 用 rm -rf 刪掉 src/legacy、測試失敗，接著 npx zerostel undo 把檔案救回來" width="800"></p>
+<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo：agent 用 rm -rf 刪掉 src/legacy、測試失敗；npx zerostel checks 顯示測試先前通過、之後一直失敗；npx zerostel undo 把檔案救回來" width="800"></p>
 
 ## 快速開始
 

@@ -21,7 +21,7 @@ AI エージェントのためのゼロトラスト：壊すものと想定し�
 
 </div>
 
-<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo：エージェントが rm -rf で src/legacy を削除してテストが失敗し、npx zerostel undo で元に戻す" width="800"></p>
+<p align="center"><img src="docs/assets/demo.gif" alt="npx zerostel demo：エージェントが rm -rf で src/legacy を削除してテストが失敗し、npx zerostel checks でテストが以前は通っていてその後失敗していることを確認、npx zerostel undo で元に戻す" width="800"></p>
 
 ## クイックスタート
 

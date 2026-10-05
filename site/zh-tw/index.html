@@ -225,10 +225,10 @@
     <h2 id="how-h">agent 動作很快，出錯也很快。</h2>
     <p class="sub">一個被刪掉的資料夾、一次對整個 repo 的 <code>sed -i</code>、跑了兩次的資料庫遷移。有些 agent 的 checkpoint 完全看不到 shell 指令，而且每家的復原方式都不一樣。Zerostel 給你一份紀錄、一條回去的路，不管是哪個 agent 做的。</p>
     <figure class="watch">
-      <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="960" height="579">
-        <source src="/assets/demo-undo.mp4" type="video/mp4">
+      <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg?v=f829a5f391" width="960" height="579">
+        <source src="/assets/demo-undo.mp4?v=06a5d13bfd" type="video/mp4">
       </video>
-      <figcaption>25 秒，沒有聲音：agent 的一個回合用 <code>rm -rf</code> 刪掉 <code>src/legacy</code>、測試失敗；<code>npx zerostel undo</code> 把它救回來。</figcaption>
+      <figcaption>33 秒，沒有聲音：agent 的一個回合用 <code>rm -rf</code> 刪掉 <code>src/legacy</code>、測試失敗；<code>npx zerostel checks</code> 顯示測試先前通過、之後一直失敗；<code>npx zerostel undo</code> 把它救回來。</figcaption>
     </figure>
     <div class="grid g3">
       <div class="card">

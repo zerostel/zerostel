@@ -1,4 +1,4 @@
-// Stamps the website's stylesheet and script links with a hash of their
+// Stamps the website's links to its stylesheet, script and demo video with a hash of their
 // content (/assets/site.css?v=...), so a browser never pairs a new page with
 // an old stylesheet it still has cached: Cloudflare tells browsers to keep
 // them for hours.
@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const site = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'site');
-const ASSETS = ['/assets/site.css', '/assets/site.js'];
+const ASSETS = ['/assets/site.css', '/assets/site.js', '/assets/demo-undo.mp4', '/assets/demo-undo.jpg'];
 
 const pages = (dir) =>
   fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

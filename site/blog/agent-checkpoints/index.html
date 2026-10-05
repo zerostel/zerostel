@@ -104,10 +104,10 @@
   <h2 id="zerostel">Why I built Zerostel</h2>
   <p>I use more than one agent, and each one gave me a different answer to "what changed, and can I get it back?" So I built <a href="/">Zerostel</a>: a flight recorder and time machine that sits outside the agents.</p>
   <figure>
-    <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="960" height="579">
-      <source src="/assets/demo-undo.mp4" type="video/mp4">
+    <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg?v=f829a5f391" width="960" height="579">
+      <source src="/assets/demo-undo.mp4?v=06a5d13bfd" type="video/mp4">
     </video>
-    <figcaption>An agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel undo</code> brings it back. 25 seconds, no sound.</figcaption>
+    <figcaption>An agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel checks</code> shows the test passed before and fails since; <code>npx zerostel undo</code> brings it back. 33 seconds, no sound.</figcaption>
   </figure>
   <p>It hooks into Claude Code, Codex, Cursor, Copilot CLI, Gemini CLI, Antigravity and opencode, and takes a snapshot before and after every tool call that can change files, shell commands included, into a separate shadow repository. It never touches your <code>.git</code>, backs up small ignored files like <code>.env</code>, and works without a git repo. Before a rewind it snapshots the current state, so every rewind can itself be undone, and it only removes files it holds a copy of. It also keeps a timeline you can read, guardrails that block or ask before a tool runs, and a log that shows if it was edited.</p>
   <p>It has limits too, and <a href="https://github.com/zerostel/zerostel#limits">they're written down</a>: it isn't a sandbox, it only restores states it captured, and it can't rewind the agent's conversation.</p>

@@ -4,7 +4,8 @@ How a maintainer cuts a release. Zerostel ends up inside every user's agent hook
 
 ## Once, before the first release
 
-- **npm:** two-factor authentication on the account. Publish through CI only, never from a laptop: the `npm` environment (Settings → Environments) holds the publish credential, requires a reviewer, and is limited to `v*` tags. After the first release, switch the package to npm trusted publishing (OIDC) bound to this repository and `release.yml`, and delete the token.
+- **npm:** two-factor authentication on the account. Releases are published by CI only, through npm trusted publishing, so no npm token exists anywhere. npm only lets a package that already exists name a trusted publisher, so the name was claimed with a placeholder `0.0.0` (no code, deprecated) published by hand with 2FA. The package's settings on npmjs.com name GitHub Actions, `zerostel/zerostel`, `release.yml` and the environment `npm` as its trusted publisher, and its publishing access is "Require two-factor authentication and disallow tokens".
+- **The `npm` environment** (Settings → Environments): requires a reviewer and is limited to `v*` tags. It holds no secrets.
 - **Tags:** a tag ruleset protecting `v*`, so only maintainers can create release tags and none can be moved or deleted.
 - **Package repositories:** `zerostel/homebrew-tap` (`Formula/`) and `zerostel/scoop-bucket` (`bucket/`).
 
@@ -25,7 +26,7 @@ How a maintainer cuts a release. Zerostel ends up inside every user's agent hook
 
 4. The `Release` workflow then runs:
    - `build`: checks that the tag is on `main` and matches `package.json`, runs the tests, builds, and packs the tarball. It holds no secrets.
-   - `publish`: waits for a reviewer to approve the `npm` environment, then publishes the tarball with provenance and `--ignore-scripts`. It runs no project code.
+   - `publish`: waits for a reviewer to approve the `npm` environment, then publishes the tarball with provenance and `--ignore-scripts`, using the short-lived credential npm trusted publishing gives it. It runs no project code.
    - `manifests`: computes the Homebrew formula and Scoop manifest from the published package.
    - `standalone`: builds the executables with Node inside for Linux, macOS and Windows on x64 and arm64.
    - `release-assets`: checks it has exactly the six expected archives, writes `SHA256SUMS`, signs each archive's build provenance, and creates a **draft** GitHub release. It runs no project code.

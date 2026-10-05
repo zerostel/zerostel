@@ -5,10 +5,12 @@ name: Release
 #
 # Zerostel ends up inside every user's agent hooks, so a hijacked release is
 # the worst thing that can happen to it. The build job runs the dev
-# dependencies (tests, bundler) but holds no secrets; the publish job holds the
-# npm token but runs no project code, only `npm publish` on the built tarball.
-# The `npm` environment should require a reviewer (repo Settings →
-# Environments). Actions are pinned to commit SHAs.
+# dependencies (tests, bundler) but holds no secrets. The publish job runs no
+# project code, only `npm publish` on the built tarball, and holds no npm token
+# either: npm trusted publishing gives it a short-lived credential for this
+# repository, this workflow and the `npm` environment only. The `npm`
+# environment requires a reviewer (repo Settings → Environments). Actions are
+# pinned to commit SHAs.
 
 on:
   push:
@@ -52,18 +54,18 @@ jobs:
     environment: npm
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing and provenance
     steps:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
+      - name: npm is new enough for trusted publishing (11.5.1)
+        run: test "$(printf '11.5.1\n%s\n' "$(npm --version)" | sort -V | head -n1)" = 11.5.1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tarball
       - run: npm publish zerostel-*.tgz --provenance --access public --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   manifests:
     needs: publish

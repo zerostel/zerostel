@@ -15,7 +15,8 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    # release tags only, not the moving v0 tag the GitHub Action is used by
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 permissions:
   contents: read

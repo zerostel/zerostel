@@ -32,8 +32,14 @@ How a maintainer cuts a release. Zerostel ends up inside every user's agent hook
    - `release-assets`: checks it has exactly the six expected archives, writes `SHA256SUMS`, signs each archive's build provenance, and creates a **draft** GitHub release. It runs no project code.
 5. On npmjs.com, open the package's **Staged Packages** tab, check the version and its files, and approve it with 2FA (or `npm stage list zerostel`, then `npm stage approve <id>`). Only now is it on npm.
 6. Review the draft release and publish it.
-7. Check that the formula's hash matches what npm now serves (`node scripts/release-manifests.mjs <version>` prints it), then commit the formula to the tap and the manifest to the bucket (artifact `package-manifests`).
-8. Publish the MCP Registry entry from the repository root (`io.github.zerostel/zerostel` needs an owner of the `zerostel` organization):
+7. Move the `v0` tag the GitHub Action is used by (`uses: zerostel/zerostel@v0`) to the release. The `Release` workflow only runs for full version tags, so this starts nothing:
+
+   ```bash
+   git tag -f v0 v0.1.0 && git push -f origin v0
+   ```
+
+8. Check that the formula's hash matches what npm now serves (`node scripts/release-manifests.mjs <version>` prints it), then commit the formula to the tap and the manifest to the bucket (artifact `package-manifests`).
+9. Publish the MCP Registry entry from the repository root (`io.github.zerostel/zerostel` needs an owner of the `zerostel` organization):
 
    ```bash
    mcp-publisher login github

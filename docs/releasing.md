@@ -39,12 +39,7 @@ How a maintainer cuts a release. Zerostel ends up inside every user's agent hook
    ```
 
 8. Check that the formula's hash matches what npm now serves (`node scripts/release-manifests.mjs <version>` prints it), then commit the formula to the tap and the manifest to the bucket (artifact `package-manifests`).
-9. Publish the MCP Registry entry from the repository root (`io.github.zerostel/zerostel` needs an owner of the `zerostel` organization):
-
-   ```bash
-   mcp-publisher login github
-   mcp-publisher publish
-   ```
+9. Update the MCP Registry entry: Actions → **MCP Registry** → Run workflow. It logs in with the run's GitHub OIDC token, which the registry accepts for `io.github.zerostel/*`, so no token is involved. (`mcp-publisher login github` on a laptop only grants a personal namespace unless the registry's GitHub App can see the organization.)
 
 Users can check a downloaded executable with `gh attestation verify <file> --repo zerostel/zerostel`.
 

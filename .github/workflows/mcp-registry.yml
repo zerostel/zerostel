@@ -1,0 +1,36 @@
+name: MCP Registry
+
+# Publishes server.json to the MCP Registry as io.github.zerostel/zerostel.
+# Run it by hand (Actions → MCP Registry → Run workflow) once a release is live
+# on npm: the registry checks that the npm package of that version names this
+# server (`mcpName` in package.json). It logs in with this run's GitHub OIDC
+# token, which the registry turns into publish rights for io.github.zerostel/*,
+# so there is no secret to keep.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # the registry login
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: mcp-publisher, checked against its published hash
+        env:
+          VERSION: 1.8.1
+          SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/mcp-publisher.tar.gz" "https://github.com/modelcontextprotocol/registry/releases/download/v$VERSION/mcp-publisher_linux_amd64.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/mcp-publisher.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP" mcp-publisher
+      - run: '"$RUNNER_TEMP/mcp-publisher" login github-oidc'
+      - run: '"$RUNNER_TEMP/mcp-publisher" publish'

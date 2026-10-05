@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 (2026-10-05)
+
+Fixes to 0.2.0's checks, handoffs and `--keep-others`, from a second review. After upgrading, run `zerostel install` once more.
+
+- `--keep-others` also keeps files you edited by hand after the agent's last step, before any hook had recorded them, and looks again right before the rewind runs, in case something changed while the question was on screen.
+- `zerostel check --project <path>` runs the command in that project, not in the folder you happen to be in, so the result is tied to the code it actually ran on. The folder it ran in is recorded with it.
+- A handoff says "every recorded check passed on the code as it is now" only when there are checks, all of them passed, and all of them ran on the current code. A pass whose freshness can't be told, or a session with no checks at all, is said to be unconfirmed.
+- A handoff saved inside the project no longer makes `zerostel handoff check` report the project as changed.
+- A check piped into another command counts as passed only after a real `set -o pipefail` (or `set -euo pipefail`) before it; the word anywhere else, in an argument or a comment, no longer does.
+
 ## 0.2.0 (2026-10-05)
 
 Check the work, hand it over, and rewind without taking back other people's. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.

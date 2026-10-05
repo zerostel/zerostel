@@ -100,7 +100,10 @@ export function resultMasked(command: string): boolean {
   parts.push({ seg, op: '' });
   const k = parts.findIndex((x) => checkKind(x.seg) !== null);
   if (k < 0) return false;
-  if (parts[k]!.op === '|' && !/\bpipefail\b/.test(text)) return true;
+  // a pipe keeps the check's failure only under `set -o pipefail` (or -euo pipefail),
+  // run as its own command before it: the word anywhere else proves nothing
+  const pipefail = parts.slice(0, k).some((x) => /^\s*set\s+(?:-[a-zA-Z]+\s+)*-[a-zA-Z]*o\s+pipefail\s*$/.test(x.seg));
+  if (parts[k]!.op === '|' && !pipefail) return true;
   if (parts.slice(k).some((x) => x.op === '||' || x.op === ';' || x.op === '&' || x.op === '\n')) return true;
   return /\bexit\s+0\b/.test(parts.slice(k + 1).map((x) => x.seg).join(' '));
 }

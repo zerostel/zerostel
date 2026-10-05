@@ -218,7 +218,9 @@ async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flag
     out('Cancelled.');
     return;
   }
-  const res = applyRestore(p, s.ref, t, { only, keep, ctx });
+  // looked at again now: files can change while the question was on screen
+  const keepNow = flags['keep-others'] ? [...new Set([...keep!, ...changedByOthers(p, s, t).keys()])] : undefined;
+  const res = applyRestore(p, s.ref, t, { only, keep: keepNow, ctx });
   for (const f of res.failed) err(c.yellow(`  ! ${oneLine(f.path)}: ${f.error}`));
   out(res.failed.length ? c.yellow(`! Done, but ${res.failed.length} file${res.failed.length > 1 ? 's were' : ' was'} not restored (see above).`) : c.green('✓ Done.'));
   const z = selfCommand();
@@ -680,9 +682,12 @@ export async function main(argv: string[]): Promise<void> {
         writeState(ref, st);
         return sha;
       });
-      const r = await runCommand(rest, ctx.cwd);
+      // it runs in the project the snapshot is of: here if here is inside it, else its root (--project)
+      const rel = path.relative(p.root, ctx.cwd);
+      const runIn = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel)) ? ctx.cwd : p.root;
+      const r = await runCommand(rest, runIn);
       withLock(ref.file + '.lock', () => {
-        append(ref, { e: 'check', ts: now(), id: newId(), name, kind: checkKind(rest.join(' ')) ?? 'test', snap: ranOn, ok: r.code === 0, by: 'zerostel', exit: r.code, durationMs: r.durationMs, output: r.output });
+        append(ref, { e: 'check', ts: now(), id: newId(), name, kind: checkKind(rest.join(' ')) ?? 'test', snap: ranOn, ok: r.code === 0, by: 'zerostel', exit: r.code, durationMs: r.durationMs, output: r.output, cwd: runIn });
         // files the check itself wrote (snapshots, generated code) show up as their own step;
         // a hook that ran meanwhile has already recorded its part
         const after = snapshot(p, `after check: ${name}`).sha;
@@ -713,7 +718,7 @@ export async function main(argv: string[]): Promise<void> {
       }
       if (args[0] === 'check') {
         if (!current) fail("can't take a snapshot of this project to compare with");
-        const res = checkHandoff(p, fs.readFileSync(args[1]!, 'utf8'), current);
+        const res = checkHandoff(p, fs.readFileSync(args[1]!, 'utf8'), current, args[1]);
         for (const line of res.lines) out(res.ok ? c.green(line) : line);
         process.exit(res.ok ? 0 : 1);
       }

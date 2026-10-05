@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { redact } from '../detect/secrets.js';
 import type { Project } from '../store/project.js';
 import { listSessions, loadSession, summarize, type Session } from '../store/session.js';
@@ -151,14 +152,17 @@ export function renderHandoff(p: Project, s: Session, current: string | null, op
   const open: string[] = [];
   for (const st of checks) {
     if (st.latest.ok === false) open.push(`${checkCode(st.name)} is failing.`);
-    else if (st.freshness.state === 'stale') open.push(`${checkCode(st.name)} passed on older code; run it again.`);
     else if (st.latest.ok === undefined) open.push(`${checkCode(st.name)} ran but its result wasn't reported; run it again.`);
+    else if (st.freshness.state === 'stale') open.push(`${checkCode(st.name)} passed on older code; run it again.`);
+    else if (st.freshness.state === 'unknown') open.push(`${checkCode(st.name)} passed, but Zerostel can't tell whether the code changed since; run it again.`);
   }
-  if (!checks.length && net.length) open.push('Nothing was checked: run the tests (or build) before calling it done.');
+  if (!checks.length) open.push(net.length ? 'Nothing was checked: run the tests (or build) before calling it done.' : 'No tests or builds were run in this session, so nothing has been confirmed.');
+  // only said when there are checks, every one passed, and every one ran on the code as it is now
+  const allGood = checks.length > 0 && checks.every((st) => st.latest.ok === true && st.freshness.state === 'current');
   out.push('');
   out.push('## Before calling it done');
   out.push('');
-  out.push(...(open.length ? open.map((o) => `- ${o}`) : ['- The recorded checks passed on the code as it is now.']));
+  out.push(...(allGood ? ['- Every recorded check passed on the code as it is now.'] : open.map((o) => `- ${o}`)));
   out.push('- `zerostel handoff check <this file>` tells whether the folder still matches this handoff.');
 
   if (current) {
@@ -169,14 +173,18 @@ export function renderHandoff(p: Project, s: Session, current: string | null, op
 }
 
 /** Whether the project still matches a handoff: lines to print, and the answer. */
-export function checkHandoff(p: Project, text: string, current: string): { ok: boolean; lines: string[] } {
+export function checkHandoff(p: Project, text: string, current: string, file?: string): { ok: boolean; lines: string[] } {
   // the last marker: Zerostel writes it at the very end, after anything quoted
   const m = [...text.matchAll(MARKER)].pop();
   if (!m) return { ok: false, lines: ["This doesn't look like a Zerostel handoff (its last line, the marker, is missing)."] };
   const [, tree, snap] = m;
   if (treeOf(p, current) === tree) return { ok: true, lines: ['The project matches the handoff: same files, same contents.'] };
+  // a handoff saved inside the project was written after its own snapshot: it doesn't count as a change
+  const rel = file ? path.relative(p.root, path.resolve(file)).split(path.sep).join('/') : '';
+  const own = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : null;
   try {
-    const files = changes(p, snap!, current);
+    const files = changes(p, snap!, current).filter((f) => f.path !== own);
+    if (!files.length) return { ok: true, lines: ['The project matches the handoff: same files, same contents (apart from the handoff file itself).'] };
     return { ok: false, lines: [`The project has changed since the handoff, in ${files.length} file(s):`, ...fileList(files, 30, plain)] };
   } catch {
     return { ok: false, lines: ["The project differs from the handoff. It was written elsewhere (or its snapshots were pruned), so the files that differ can't be listed."] };

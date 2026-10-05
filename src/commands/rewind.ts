@@ -125,6 +125,23 @@ function since(s: Session, t: Target): number | null {
  * or leave them alone. Path -> who changed it.
  */
 export function changedByOthers(p: Project, s: Session, t: Target): Map<string, string> {
+  const out = recordedByOthers(p, s, t);
+  // Edits nobody has recorded yet: you changed a file in your editor after the
+  // agent's last step, and no hook has run since. They show up as differences
+  // between this session's last snapshot and the project as it is now.
+  try {
+    const seen = readState(s.ref).lastSnap;
+    if (seen) {
+      const now = snapshot(p, 'looking for changes by others').sha;
+      if (now !== seen) for (const f of changes(p, seen, now)) if (!out.has(f.path)) out.set(f.path, 'edits outside the agent, not recorded yet');
+    }
+  } catch {
+    // snapshots paused or the old one pruned: only what was recorded counts
+  }
+  return out;
+}
+
+function recordedByOthers(p: Project, s: Session, t: Target): Map<string, string> {
   const sinceMs = t.step ? Date.parse(t.step.ts) : s.startedAt ? Date.parse(s.startedAt) : 0;
   const later = s.steps.slice(since(s, t) ?? 0);
   // when this session itself last changed each file (its own tool calls and rewinds)

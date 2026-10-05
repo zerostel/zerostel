@@ -39,7 +39,7 @@ export type Ev =
   | { e: 'userenv'; ts: string; id: string; changes: EnvChange[] }
   | { e: 'hooks'; ts: string; id: string; file: string; change: 'removed' | 'disabled' }
   // a test, type check, linter or build, and the snapshot of the code it ran against; step: the agent's tool call that ran it
-  | { e: 'check'; ts: string; id: string; name: string; kind: CheckKind; snap?: string; ok?: boolean; by: 'agent' | 'zerostel'; step?: string; exit?: number; durationMs?: number; output?: string }
+  | { e: 'check'; ts: string; id: string; name: string; kind: CheckKind; snap?: string; ok?: boolean; by: 'agent' | 'zerostel'; step?: string; exit?: number; durationMs?: number; output?: string; cwd?: string }
   | { e: 'end'; ts: string; reason?: string; exit?: number | null };
 
 export interface SessionRef {

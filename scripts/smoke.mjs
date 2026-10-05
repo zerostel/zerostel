@@ -156,6 +156,9 @@ try {
   const found = z(['find', 'hand-edit.md']);
   check('an edit made before a check stays in the timeline', /Changes made outside the agent/.test(found.out), found.out);
   fs.rmSync(path.join(proj, 'hand-edit.md'));
+  // with --project, from another folder: the check runs in that project, not here
+  const elsewhere = z(['check', '--project', proj, '--session', 'smoke-claude', '--', process.execPath, '-e', 'console.log("ran in " + process.cwd())'], { cwd: tmp });
+  check('check --project runs in that project', elsewhere.code === 0 && elsewhere.out.includes('ran in ' + proj), elsewhere.out);
   const passing = z(['check', '--session', 'smoke-claude', '--', process.execPath, '-e', 'console.log("ok")']);
   check('check prints the command output', passing.code === 0 && /\bok\b/.test(passing.out), passing.out);
   write('src/app.ts', 'const x = 9;\n');

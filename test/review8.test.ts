@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleHook } from '../src/agents/hooks.js';
 import { checkName, checkStatuses, renderChecks, resultMasked } from '../src/commands/checks.js';
-import { renderHandoff } from '../src/commands/handoff.js';
+import { checkHandoff, renderHandoff } from '../src/commands/handoff.js';
 import { applyRestore, changedByOthers, rewindTarget } from '../src/commands/rewind.js';
 import { evaluate, normalizePath } from '../src/guard/policy.js';
 import { openProject } from '../src/store/project.js';
@@ -223,6 +223,69 @@ describe('R8-UNC: a network path in a tool call', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe('R9: second look at checks, handoffs and --keep-others', () => {
+  it('keeps an edit made by hand after the agent finished, before any hook saw it', () => {
+    sb.write('a.txt', 'a1\n');
+    sb.write('b.txt', 'b1\n');
+    const ev = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'late', cwd: sb.project, ...e }, sb.ctx);
+    ev({ hook_event_name: 'UserPromptSubmit', prompt: 'change a and b' });
+    ev({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'edit' } });
+    sb.write('a.txt', 'a2\n');
+    sb.write('b.txt', 'b2\n');
+    ev({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'edit' }, tool_response: {} });
+    ev({ hook_event_name: 'Stop' });
+    // the agent is done; you fix b.txt in your editor, and no hook runs after that
+    sb.write('b.txt', 'b3, my own fix\n');
+    const p = openProject(sb.project, sb.ctx);
+    const s = loadSession(findSession(p, 'late')!);
+    const t = rewindTarget(s, '1');
+    const others = changedByOthers(p, s, t);
+    expect(others.get('b.txt')).toBe('edits outside the agent, not recorded yet');
+    expect(others.has('a.txt')).toBe(false);
+    applyRestore(p, s.ref, t, { keep: [...others.keys()] });
+    expect(sb.read('a.txt')).toBe('a1\n');
+    expect(sb.read('b.txt')).toBe('b3, my own fix\n');
+  });
+
+  it('says every check passed only when every one did, on the code as it is now', () => {
+    const p = openProject(sb.project, sb.ctx);
+    const ref = sessionRef(p, 'claude-code', 'h');
+    append(ref, { e: 'start', ts: now(), agent: 'claude-code', session: 'h', cwd: sb.project });
+    append(ref, { e: 'prompt', ts: now(), id: newId(), text: 'look around' });
+    const s1 = snapshot(p, 's').sha;
+    // no checks, no changes: nothing was confirmed
+    const none = renderHandoff(p, loadSession(ref), s1, { version: 't' });
+    expect(none).not.toMatch(/passed on the code as it is now/);
+    expect(none).toMatch(/nothing has been confirmed/);
+    // a pass whose freshness can't be told is not "current"
+    append(ref, { e: 'check', ts: now(), id: newId(), name: 'npm test', kind: 'test', snap: s1, ok: true, by: 'agent' });
+    const unknown = renderHandoff(p, loadSession(ref), null, { version: 't' });
+    expect(unknown).not.toMatch(/Every recorded check passed/);
+    expect(unknown).toMatch(/can't tell whether the code changed since/);
+    expect(renderHandoff(p, loadSession(ref), s1, { version: 't' })).toMatch(/Every recorded check passed on the code as it is now/);
+  });
+
+  it("doesn't count a handoff saved in the project as a change", () => {
+    sb.write('a.txt', 'a\n');
+    const ev = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'ho', cwd: sb.project, ...e }, sb.ctx);
+    ev({ hook_event_name: 'UserPromptSubmit', prompt: 'go' });
+    const p = openProject(sb.project, sb.ctx);
+    const text = renderHandoff(p, loadSession(findSession(p)!), snapshot(p, 'now').sha, { version: 't' });
+    const file = path.join(sb.project, 'handoff.md');
+    fs.writeFileSync(file, text);
+    expect(checkHandoff(p, text, snapshot(p, 'later').sha, file)).toMatchObject({ ok: true });
+    sb.write('a.txt', 'changed\n');
+    expect(checkHandoff(p, text, snapshot(p, 'later2').sha, file).ok).toBe(false);
+  });
+
+  it('only trusts a pipe under a real set -o pipefail before the check', () => {
+    for (const masked of ['npm test | tail # pipefail', 'echo pipefail; npm test | tail', 'npm test --reporter=pipefail | tail', 'npm test | tail; set -o pipefail'])
+      expect(resultMasked(masked), masked).toBe(true);
+    for (const kept of ['set -o pipefail; npm test | tail -20', 'set -euo pipefail && npm test 2>&1 | tail'])
+      expect(resultMasked(kept), kept).toBe(false);
   });
 });
 

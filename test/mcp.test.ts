@@ -46,12 +46,21 @@ describe('MCP server', () => {
     expect(preview.text).toMatch(/preview/);
     expect(preview.text).toMatch(/keep\.txt/);
     expect(sb.read('keep.txt')).toBeNull();
-    const done = call('rewind', { step: '0', apply: true });
+    // applying needs the code from a preview of this same state
+    expect(call('rewind', { step: '0', apply: true })).toMatchObject({ isError: true });
+    expect(sb.read('keep.txt')).toBeNull();
+    const confirm = /confirm="([0-9a-f]{8})"/.exec(preview.text)![1];
+    sb.write('late.txt', 'x');
+    expect(call('rewind', { step: '0', apply: true, confirm }).text).toMatch(/changed since that preview/);
+    fs.rmSync(path.join(sb.project, 'late.txt'));
+    const fresh = /confirm="([0-9a-f]{8})"/.exec(call('rewind', { step: '0' }).text)![1];
+    const done = call('rewind', { step: '0', apply: true, confirm: fresh });
     expect(done.text).toMatch(/done/);
     expect(sb.read('keep.txt')).toBe('original\n');
     // the rewind is in the timeline and can be undone
     expect(call('timeline').text).toMatch(/point zero/);
-    call('rewind', { step: 'undo', apply: true });
+    const undo = /confirm="([0-9a-f]{8})"/.exec(call('rewind', { step: 'undo' }).text)![1];
+    call('rewind', { step: 'undo', apply: true, confirm: undo });
     expect(sb.read('keep.txt')).toBeNull();
   });
 

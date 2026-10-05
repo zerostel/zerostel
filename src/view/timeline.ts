@@ -1,7 +1,7 @@
 import type { Session, Step } from '../store/session.js';
 import { shortId, stepDuration, summarize } from '../store/session.js';
 import type { FileChange } from '../store/shadow.js';
-import { ago, c, fmtClock, fmtDate, fmtDuration, fmtTokens, truncate } from '../util/term.js';
+import { ago, c, fmtClock, fmtDate, fmtDuration, fmtTokens, oneLine, truncate } from '../util/term.js';
 
 export const AGENT_NAMES: Record<string, string> = {
   'claude-code': 'Claude Code',
@@ -116,13 +116,13 @@ export function renderTimeline(s: Session, opts: { onlyChanges?: boolean; width?
     const dur = ms === undefined ? '' : fmtDuration(ms);
     // fixed columns: number, clock, icon, summary, duration, file changes
     if (st.type === 'prompt') {
-      lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${c.bold(truncate(st.summary, width - numW - 15))}`);
+      lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${c.bold(truncate(oneLine(st.summary), width - numW - 15))}`);
       continue;
     }
     // 36 columns for the file changes and the flag after them, so a long
     // badge plus ⚠ (two columns wide in many terminals) doesn't wrap the line
     const sumW = Math.max(24, width - (numW + 1) - 14 - 7 - 36);
-    const label = st.subagent ? `↳ ${st.summary}` : st.summary;
+    const label = oneLine(st.subagent ? `↳ ${st.summary}` : st.summary);
     const plain = truncate(label, sumW).padEnd(sumW);
     let text = plain;
     if (st.type === 'outside') text = c.yellow(plain);
@@ -143,6 +143,6 @@ export function renderSessionRow(s: Session): string {
     String(sum.steps).padStart(5),
     String(sum.filesChanged).padStart(6),
     (tokens ? fmtTokens(tokens) : '-').padStart(7),
-    '  ' + truncate(sum.title, 50),
+    '  ' + truncate(oneLine(sum.title), 50),
   ].join(' ');
 }

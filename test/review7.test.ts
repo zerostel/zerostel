@@ -32,6 +32,11 @@ describe('K-01: what goes unchecked is not let through', () => {
     expect(pre('Bash', { command: `echo ${'a'.repeat(100_000)} && cat ~/.aws/credentials` }, 'k4')).toMatchObject({ action: 'deny' });
   });
 
+  it("doesn't ask when no rule looks at paths or commands", () => {
+    fs.writeFileSync(path.join(sb.ctx.dataDir, 'policy.json'), JSON.stringify({ rules: [{ action: 'deny', tools: ['WebFetch'] }] }));
+    expect(pre('Bash', { command: `echo ${'a'.repeat(300_000)}` }, 'k3b')).toBeUndefined();
+  });
+
   it('reads paths nested inside the arguments, and bare file names in commands', () => {
     const key = path.join(sb.root, '.ssh', 'id_ed25519');
     expect(pre('MultiEdit', { edits: [{ file_path: key, old_string: 'a', new_string: 'b' }] }, 'k5')).toMatchObject({ action: 'deny' });

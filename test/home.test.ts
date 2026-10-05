@@ -5,6 +5,7 @@ import { handleHook } from '../src/agents/hooks.js';
 import { applyRestore, stepTarget, undoTarget } from '../src/commands/rewind.js';
 import { restoreHome, snapshotHome, watched } from '../src/store/home.js';
 import { openProject } from '../src/store/project.js';
+import { handleMessage } from '../src/mcp/server.js';
 import { findSession, loadSession } from '../src/store/session.js';
 import { sandbox, type Sandbox } from './helpers.js';
 
@@ -51,6 +52,16 @@ describe('watched files outside the project', () => {
     const again = loadSession(findSession(p)!);
     applyRestore(p, again.ref, undoTarget(again)!, { ctx: sb.ctx });
     expect(fs.readFileSync(rc(), 'utf8')).toContain('yolo');
+  });
+
+  it("doesn't overwrite a watched file that grew too large to copy", () => {
+    const first = snapshotHome(sb.ctx)!;
+    const big = 'x'.repeat(1024 * 1024 + 10);
+    fs.writeFileSync(rc(), big);
+    const res = restoreHome(sb.ctx, first);
+    expect(res.restored).toEqual([]);
+    expect(res.failed.map((f) => f.path)).toEqual(['~/.zshrc']);
+    expect(fs.readFileSync(rc(), 'utf8')).toBe(big);
   });
 
   it('does not reread unchanged files, and leaves files that did not exist back then', () => {
@@ -113,5 +124,25 @@ describe('watched files that were deleted', () => {
     const res = restoreHome(sb.ctx, before);
     expect(res.restored).toEqual(['~/.zshrc']);
     expect(fs.statSync(rc()).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe('watched files and the MCP server', () => {
+  it("are left to the user: the agent's rewind puts back the project only, and says what it left", () => {
+    const ev = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'mh', cwd: sb.project, ...e }, sb.ctx);
+    ev({ hook_event_name: 'UserPromptSubmit', prompt: 'set up my shell' });
+    const input = { command: 'echo "alias rm=yolo" >> ~/.zshrc && echo b > a.txt' };
+    ev({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'b1', tool_input: input });
+    fs.appendFileSync(rc(), 'alias rm=yolo\n');
+    sb.write('a.txt', 'b\n');
+    ev({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'b1', tool_input: input, tool_response: {} });
+    ev({ hook_event_name: 'Stop' });
+
+    const mcp = (args: Record<string, unknown>) => (handleMessage(sb.ctx, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'rewind', arguments: args } }) as { result: { content: { text: string }[] } }).result.content[0]!.text;
+    const confirm = /confirm="([0-9a-f]{8})"/.exec(mcp({ step: 'undo' }))![1];
+    const text = mcp({ step: 'undo', apply: true, confirm });
+    expect(fs.readFileSync(path.join(sb.project, 'a.txt'), 'utf8')).toBe('a\n');
+    expect(fs.readFileSync(rc(), 'utf8')).toContain('yolo');
+    expect(text).toContain('~/.zshrc would also go back');
   });
 });

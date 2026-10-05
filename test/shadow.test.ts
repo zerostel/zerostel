@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openProject, unsafeRoot } from '../src/store/project.js';
-import { changes, diffText, restore, snapshot } from '../src/store/shadow.js';
+import { changes, diffText, restore, snapshot, trackedPaths } from '../src/store/shadow.js';
+import { git } from '../src/util/git.js';
 import { sandbox, type Sandbox } from './helpers.js';
 
 let sb: Sandbox;
@@ -132,5 +133,33 @@ describe('shadow repo', () => {
     expect(unsafeRoot(sb.ctx.home, sb.ctx)).toBe('the home directory');
     expect(unsafeRoot(path.parse(sb.project).root, sb.ctx)).toBe('a drive or filesystem root');
     expect(unsafeRoot(sb.project, sb.ctx)).toBeNull();
+  });
+
+  it('refuses a folder above home, and the store itself', () => {
+    // C:\Users or /home: every snapshot would copy the store into itself
+    expect(unsafeRoot(path.dirname(sb.ctx.home), sb.ctx)).toBe('a folder that contains the home directory');
+    expect(unsafeRoot(path.join(sb.ctx.dataDir, 'projects', 'x'), sb.ctx)).toBe("Zerostel's own data folder");
+  });
+
+  it("never snapshots or restores its own store when it sits inside the project", () => {
+    const ctx = { ...sb.ctx, dataDir: path.join(sb.project, '.zs') };
+    sb.write('a.txt', 'one\n');
+    const p = openProject(sb.project, ctx);
+    const s1 = snapshot(p, 's1');
+    sb.write('a.txt', 'two\n');
+    const s2 = snapshot(p, 's2');
+    expect([...trackedPaths(p, s1.sha)]).toEqual(['a.txt']);
+    expect([...trackedPaths(p, s2.sha)]).toEqual(['a.txt']);
+    // a snapshot from before this rule that did hold the store
+    sb.write('.zs/old.txt', 'stale\n');
+    git(p.repo, ['add', '-f', '--', '.zs/old.txt', 'a.txt']);
+    const tree = git(p.repo, ['write-tree']).trim();
+    const old = git(p.repo, ['commit-tree', tree, '-p', s2.sha, '-m', 'old']).trim();
+    git(p.repo, ['update-ref', 'HEAD', old]);
+    fs.rmSync(path.join(sb.project, '.zs', 'old.txt'));
+    const r = restore(p, old);
+    expect(r.created).not.toContain('.zs/old.txt');
+    expect(fs.existsSync(path.join(sb.project, '.zs', 'old.txt'))).toBe(false);
+    expect([...trackedPaths(p, r.from)]).toEqual(['a.txt']);
   });
 });

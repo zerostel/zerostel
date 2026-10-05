@@ -1,7 +1,7 @@
 import { restoreHome, type HomeRestore } from '../store/home.js';
-import type { Project } from '../store/project.js';
+import { storeInProject, type Project } from '../store/project.js';
 import { append, loadSession, newId, now, readEvents, readState, writeState, type Ev, type Session, type SessionRef, type Step } from '../store/session.js';
-import { systemOf, type EnvChange, type EnvValue } from '../system/probe.js';
+import { checkWritable, systemOf, type EnvChange, type EnvValue } from '../system/probe.js';
 import { changes, restore, revExists, snapshot, type RestoreResult } from '../store/shadow.js';
 import { withLock } from '../util/lock.js';
 import type { Ctx } from '../util/paths.js';
@@ -131,11 +131,25 @@ function envPlan(ctx: Ctx, ref: SessionRef, s: Session, from: number): { plan: E
     plan.push({ name, from: cur, to: value });
   }
   const env = probe.userEnv;
-  return { plan, apply: (c) => (c.to ? env.set(c.name, c.to) : env.remove(c.name)) };
+  return {
+    plan,
+    apply: (c) => {
+      if (!c.to) return env.remove(c.name);
+      checkWritable(c.name, c.to);
+      env.set(c.name, c.to);
+    },
+  };
 }
 
 export function applyRestore(p: Project, ref: SessionRef, t: Target, opts: { only?: string[]; dryRun?: boolean; ctx?: Ctx } = {}): Restored {
   if (!revExists(p, t.snap)) throw new Error(`snapshot ${t.snap.slice(0, 10)} is missing from ${p.repo.gitDir}`);
+  const label = t.label + (opts.only?.length ? ` (${opts.only.join(', ')})` : '');
+  const id = newId();
+  // Recorded before any file changes, so a rewind cut short (killed, power
+  // cut) can still be undone, and prune keeps the snapshot it would go back to.
+  if (!opts.dryRun) {
+    withLock(ref.file + '.lock', () => append(ref, { e: 'rewinding', ts: now(), id, from: snapshot(p, `before ${t.label}`).sha, label }));
+  }
   const res: Restored = restore(p, t.snap, opts);
   // watched files outside the project go back too, unless the rewind is limited to some paths
   if (opts.ctx && t.home && !opts.only?.length) {
@@ -170,13 +184,15 @@ export function applyRestore(p: Project, ref: SessionRef, t: Target, opts: { onl
     // check the result instead of trusting it: anything still different from
     // the target (within --only) wasn't restored
     const failed = new Set(res.failed.map((f) => f.path));
+    const own = storeInProject(p);
     for (const c of changes(p, t.snap, after)) {
       const inScope = !opts.only?.length || opts.only.some((o) => c.path === o || c.path.startsWith(o.replace(/\/$/, '') + '/'));
-      if (inScope && !failed.has(c.path)) res.failed.push({ path: c.path, error: 'still differs from the snapshot after rewinding' });
+      const ours = own !== null && (c.path === own || c.path.startsWith(own + '/'));
+      if (inScope && !ours && !failed.has(c.path)) res.failed.push({ path: c.path, error: 'still differs from the snapshot after rewinding' });
     }
     const homeFiles = (res.home?.restored ?? []).map((path) => ({ path, status: 'M' as const, added: 0, deleted: 0, binary: false }));
     for (const f of res.home?.failed ?? []) res.failed.push(f);
-    append(ref, { e: 'restore', ts: now(), id: newId(), from: res.from, to: after, label: t.label + (opts.only?.length ? ` (${opts.only.join(', ')})` : ''), files: [...files, ...homeFiles], homeFrom: res.home?.from ?? undefined, homeTo: res.home?.to ?? undefined });
+    append(ref, { e: 'restore', ts: now(), id, from: res.from, to: after, label, files: [...files, ...homeFiles], homeFrom: res.home?.from ?? undefined, homeTo: res.home?.to ?? undefined });
     // recorded like any other change, so undoing this rewind puts the variables back too
     if (envDone.length) append(ref, { e: 'userenv', ts: now(), id: newId(), changes: envDone });
     // so the next hook doesn't report the rewind as an outside change

@@ -4,7 +4,7 @@ import { applyRestore, stepTarget, undoTarget } from '../src/commands/rewind.js'
 import { evaluate, STARTER } from '../src/guard/policy.js';
 import { openProject } from '../src/store/project.js';
 import { findSession, loadSession } from '../src/store/session.js';
-import { managersTouched, touchesUserEnv, undoCommands, type EnvValue, type SystemProbe } from '../src/system/probe.js';
+import { managersTouched, parseRegExport, touchesUserEnv, undoCommands, type EnvValue, type SystemProbe } from '../src/system/probe.js';
 import { sandbox, type Sandbox } from './helpers.js';
 
 // A pretend machine: global npm packages and a Windows user environment in memory.
@@ -91,6 +91,37 @@ describe('things outside any project', () => {
     applyRestore(p, again.ref, undoTarget(again)!, { ctx: sb.ctx });
     expect(sys.env.API_URL?.value).toBe('http://localhost:9000');
     expect(sys.env.PATH?.value).toBe('C:\\tools');
+  });
+
+  it('reads the user environment as Unicode, types and all', () => {
+    // what `reg export` writes: UTF-16 text, expandable strings as UTF-16LE hex
+    const hex = (s: string) => [...Buffer.from(s + '\0', 'utf16le')].map((b) => b.toString(16).padStart(2, '0')).join(',');
+    const pathHex = hex('C:\\工具\\bin;%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps');
+    const wrapped = pathHex.replace(/((?:[0-9a-f]{2},){24})/g, '$1\\\r\n  ');
+    const text = `\uFEFFWindows Registry Editor Version 5.00\r\n\r\n[HKEY_CURRENT_USER\\Environment]\r\n"Path"=hex(2):${wrapped}\r\n"HOME_DIR"="D:\\\\資料\\\\\\"q\\"\\\\"\r\n"Count"=dword:0000002a\r\n"Raw"=hex:01,02\r\n@="default"\r\n\r\n`;
+    expect(parseRegExport(text)).toEqual({
+      Path: { type: 'REG_EXPAND_SZ', value: 'C:\\工具\\bin;%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps' },
+      HOME_DIR: { type: 'REG_SZ', value: 'D:\\資料\\"q"\\' },
+      Count: { type: 'REG_DWORD', value: '0x0000002a' },
+      Raw: { type: 'REG_BINARY', value: '01,02' },
+    });
+  });
+
+  it("won't write back a value that was damaged when recorded, or isn't a string", () => {
+    handleHook('claude-code', { session_id: 's', cwd: sb.project, hook_event_name: 'UserPromptSubmit', prompt: 'env' }, sb.ctx);
+    // older versions read values through the console code page: 中文 became U+FFFD
+    sys.env.PATH = { type: 'REG_EXPAND_SZ', value: 'C:\\\uFFFD\uFFFD\\bin' };
+    sys.env.FLAGS = { type: 'REG_DWORD', value: '0x1' };
+    shell('e1', 'setx PATH C:\\tools && setx FLAGS 2', () => {
+      sys.env.PATH = { type: 'REG_SZ', value: 'C:\\tools' };
+      sys.env.FLAGS = { type: 'REG_SZ', value: '2' };
+    });
+    const p = openProject(sb.project, sb.ctx);
+    const s = loadSession(findSession(p)!);
+    const r = applyRestore(p, s.ref, stepTarget(s, s.steps.find((x) => x.type === 'tool')!.n), { ctx: sb.ctx });
+    expect(sys.env.PATH).toEqual({ type: 'REG_SZ', value: 'C:\\tools' });
+    expect(sys.env.FLAGS).toEqual({ type: 'REG_SZ', value: '2' });
+    expect(r.failed.map((f) => f.path).sort()).toEqual(['%FLAGS%', '%PATH%']);
   });
 
   it('leaves the machine alone in tests unless a fake is given', () => {

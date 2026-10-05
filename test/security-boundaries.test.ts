@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openProject } from '../src/store/project.js';
-import { changes, diffText, head, restore, snapshot, snapshotsPaused, SnapshotSkipped } from '../src/store/shadow.js';
+import { BaselinePending, changes, diffText, head, restore, snapshot, snapshotsPaused, SnapshotSkipped } from '../src/store/shadow.js';
 import { writeFileAtomic } from '../src/util/files.js';
 import { ensurePrivateDir } from '../src/util/paths.js';
 import { runtimeSecurityChecks } from '../src/commands/doctor.js';
@@ -136,6 +136,21 @@ describe('Windows linked-directory scan fails closed', () => {
   });
 
   it.skipIf(process.platform !== 'win32')('pauses before staging when a directory exceeds the scan budget', () => {
+    sb.write('a.txt', 'a');
+    const p = openProject(sb.project, sb.ctx);
+    const first = snapshot(p, 'first').sha;
+    const bucket = path.join(sb.project, 'bucket');
+    fs.mkdirSync(bucket);
+    fs.writeFileSync(path.join(bucket, 'safe.txt'), 'safe');
+    const read = fs.readdirSync.bind(fs);
+    const entries = Array.from({ length: 100001 }, (_, i) => ({ name: `${i}.pad`, isSymbolicLink: () => false, isDirectory: () => false } as fs.Dirent));
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((dir: fs.PathLike, opts: unknown) => path.resolve(String(dir)) === bucket ? entries : read(dir, opts as any)) as typeof fs.readdirSync);
+    expect(() => snapshot(p, 'scan')).toThrow(SnapshotSkipped);
+    expect(snapshotsPaused(p)).toMatch(/safety scan/);
+    expect(head(p)).toBe(first);
+  });
+
+  it.skipIf(process.platform !== 'win32')('hands a first snapshot too big for a hook to the background, unpaused', () => {
     const bucket = path.join(sb.project, 'bucket');
     fs.mkdirSync(bucket);
     fs.writeFileSync(path.join(bucket, 'safe.txt'), 'safe');
@@ -143,8 +158,8 @@ describe('Windows linked-directory scan fails closed', () => {
     const read = fs.readdirSync.bind(fs);
     const entries = Array.from({ length: 100001 }, (_, i) => ({ name: `${i}.pad`, isSymbolicLink: () => false, isDirectory: () => false } as fs.Dirent));
     vi.spyOn(fs, 'readdirSync').mockImplementation(((dir: fs.PathLike, opts: unknown) => path.resolve(String(dir)) === bucket ? entries : read(dir, opts as any)) as typeof fs.readdirSync);
-    expect(() => snapshot(p, 'scan')).toThrow(SnapshotSkipped);
-    expect(snapshotsPaused(p)).toMatch(/safety scan/);
+    expect(() => snapshot(p, 'scan')).toThrow(BaselinePending);
+    expect(snapshotsPaused(p)).toBeNull();
     expect(head(p)).toBeNull();
   });
 });

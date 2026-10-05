@@ -158,7 +158,8 @@ export function prune(p: Project, opts: { olderThanDays: number; dryRun?: boolea
           }
         });
       }
-      if (parent) git(p.repo, ['update-ref', 'HEAD', parent]);
+      // only if nothing snapshotted meanwhile; otherwise stop before gc can drop it
+      if (parent) git(p.repo, ['update-ref', 'HEAD', parent, tip!]);
       for (const ref of old) for (const f of [ref.file, stateFile(ref), ref.file + '.lock', ref.file + '.head']) fs.rmSync(f, { force: true });
 
       git(p.repo, ['reflog', 'expire', '--expire=now', '--all'], { allowFail: true });

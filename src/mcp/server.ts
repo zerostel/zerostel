@@ -1,9 +1,10 @@
+import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { applyRestore, rewindTarget, undoTarget, type Target } from '../commands/rewind.js';
 import { evaluate, loadPolicy } from '../guard/policy.js';
 import { verify } from '../store/audit.js';
 import { openProject, unsafeRoot, type Project } from '../store/project.js';
-import { append, findSession, loadSession, newId, now, sessionRef } from '../store/session.js';
+import { append, findSession, loadSession, newId, now, sessionRef, summarize } from '../store/session.js';
 import { snapshot } from '../store/shadow.js';
 import { withLock } from '../util/lock.js';
 import type { Ctx } from '../util/paths.js';
@@ -35,13 +36,14 @@ const TOOLS = [
   {
     name: 'rewind',
     description:
-      "Put the project files back to how they were before a step ('0' is point zero, the start of the session; 'undo' is before the last turn that changed files). Without apply=true it only previews which files would change. Only apply when the user has asked for it, after showing them the preview. The rewind itself can be undone.",
+      "Put the project files back to how they were before a step ('0' is point zero, the start of the session; 'undo' is before the last turn that changed files). Without apply=true it only previews which files would change and gives a confirm code. Only apply when the user has asked for it, after showing them the preview, passing that code. The rewind itself can be undone.",
     inputSchema: {
       type: 'object',
       properties: {
         step: { type: 'string', description: "a step number from 'timeline', '0' for point zero, or 'undo'" },
         after: { type: 'boolean', description: 'go to just after the step instead of just before' },
         apply: { type: 'boolean', description: 'actually change the files (default: preview only)' },
+        confirm: { type: 'string', description: 'with apply=true: the code the preview gave' },
       },
       required: ['step'],
     },
@@ -100,14 +102,30 @@ export function callTool(ctx: Ctx, name: string, args: Json): string {
       }
       if (!t) return 'Nothing to undo: no recorded step changed any files.';
       const apply = args.apply === true;
-      const r = applyRestore(p, s.ref, t, { dryRun: !apply, ctx });
-      const restoredHome = r.home?.restored ?? [];
-      const total = r.created.length + r.modified.length + r.deleted.length + restoredHome.length + (r.env?.length ?? 0);
+      // Applying takes the code from a preview of this exact state: the
+      // project as it is now, this session, this target. Anything that
+      // changes in between means a new preview.
+      const code = (from: string) => crypto.createHash('sha256').update(`${s.ref.file}\0${t!.snap}\0${from}`).digest('hex').slice(0, 8);
+      if (apply && args.confirm !== code(snapshot(p, 'before rewind').sha)) {
+        throw new ToolError(args.confirm ? 'The project or the session changed since that preview. Preview again (without apply) and show the user.' : 'apply=true needs the confirm code from a preview: call without apply first and show the user what would change.');
+      }
+      // The agent rewinds the project and nothing else. Watched files in the
+      // user's home and Windows user variables go back only when the user
+      // rewinds from a terminal; this says if any would.
+      const outside = applyRestore(p, s.ref, t, { dryRun: true, ctx });
+      const left = [...(outside.home?.restored ?? []), ...(outside.env ?? [])];
+      const r = applyRestore(p, s.ref, t, { dryRun: !apply });
+      const total = r.created.length + r.modified.length + r.deleted.length;
       const pkgs = r.packages?.length ? `Global packages changed since then and are NOT undone by this; to undo: ${r.packages.flatMap((x) => x.undo).join(' && ')}
 ` : '';
-      const body = pkgs + listFiles('user environment variables', r.env ?? []) + listFiles('restore', [...r.modified, ...restoredHome]) + listFiles('bring back', r.created) + listFiles('remove', r.deleted);
-      if (!total) return `${t.label}: the project already matches that point. Nothing to do.`;
-      if (!apply) return `${t.label} (preview, nothing changed yet)\n${body}This rewinds the whole project, including the user's own edits since then. Call again with apply=true only if the user agrees.`;
+      const leftNote = left.length ? `Outside the project, ${left.join(', ')} would also go back, but only if the user runs \`zerostel rewind\` in a terminal; this tool leaves them alone.\n` : '';
+      const kept = !apply && r.failed.length ? `Left alone: ${r.failed.slice(0, 30).map((f) => `${f.path} (${f.error})`).join(', ')}\n` : '';
+      const body = pkgs + listFiles('restore', r.modified) + listFiles('bring back', r.created) + listFiles('remove', r.deleted) + kept + leftNote;
+      if (!total) return `${t.label}: the project already matches that point. Nothing to do.\n${kept}${leftNote}`;
+      if (!apply) {
+        const who = `${s.agent} session "${summarize(s).title}"`;
+        return `${t.label} of the ${who} (preview, nothing changed yet)\n${body}This rewinds the whole project, including the user's own edits and other agents' since then. Only if the user agrees, call again with apply=true and confirm="${code(r.from)}".`;
+      }
       const failed = r.failed.length ? `\n${r.failed.length} file(s) could not be restored: ${r.failed.map((f) => f.path).join(', ')}` : '';
       return `${t.label}: done.\n${body}${failed}\nThe rewind is recorded and can be undone with step 'undo'.`;
     }
@@ -120,8 +138,7 @@ export function callTool(ctx: Ctx, name: string, args: Json): string {
       const text = typeof args.command === 'string' ? args.command.slice(0, 16_384) : '';
       if (!text) throw new ToolError('command is required');
       const { policy, problem } = loadPolicy(ctx);
-      if (problem) return `The user's policy file is broken, so no rules apply right now: ${problem}`;
-      if (!policy) return 'No guardrail rules are set.';
+      if (!policy) return problem ? `The user's policy file is broken and there are no earlier rules to fall back on, so none apply right now: ${problem}` : 'No guardrail rules are set.';
       const d = evaluate(policy, { tool: 'Bash', paths: [], command: text, writes: true, root: p.root, cwd: ctx.cwd, home: ctx.home, platform: ctx.platform });
       if (!d) return 'Allowed: no rule matches.';
       return d.action === 'deny' ? `Blocked by rule ${d.rule}: ${d.reason}` : `Needs the user's go-ahead (rule ${d.rule}): ${d.reason}`;

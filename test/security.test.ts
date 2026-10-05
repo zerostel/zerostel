@@ -263,6 +263,16 @@ describe('redaction', () => {
     expect(out).toContain('db.internal:5432');
     expect(redact('PASSWORD=${DB_PASSWORD}')).toBe('PASSWORD=${DB_PASSWORD}');
   });
+
+  it('masks real values that only contain a placeholder word, and leaves real placeholders alone', () => {
+    for (const leak of ['examplepass99', 'your-key-0123456789abc', 'Sxxxxxxyyyyyyy123456', 'dummyvault-8f3k2m9q1z']) {
+      expect(redact(`password=${leak}`)).not.toContain(leak);
+      expect(redact(`api_key=${leak}`)).not.toContain(leak);
+    }
+    for (const kept of ['your-api-key-here', 'sk-xxxxxxxxxxxxxxxxxxxxxxxx', '<YOUR_TOKEN>', 'changeme', 'example_token_value']) {
+      expect(redact(`api_key=${kept}`)).toContain(kept);
+    }
+  });
 });
 
 describe('install backups', () => {

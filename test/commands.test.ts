@@ -175,6 +175,49 @@ describe('install', () => {
     fs.writeFileSync(path.join(sb.ctx.claudeDir, 'settings.json'), '{ broken');
     expect(() => planInstall(sb.ctx, claudeCode)).toThrow(/not valid JSON/);
   });
+
+  it('refuses hook settings laid out wrong instead of mangling them', () => {
+    fs.mkdirSync(sb.ctx.claudeDir, { recursive: true });
+    const file = path.join(sb.ctx.claudeDir, 'settings.json');
+    for (const text of ['{"hooks": []}', '{"hooks": {"PreToolUse": "x"}}', '{"hooks": {"PreToolUse": [null]}}', '{"hooks": {"PreToolUse": {}}}', '{"hooks": {"Stop": [{"hooks": "zerostel"}]}}']) {
+      fs.writeFileSync(file, text);
+      expect(() => planInstall(sb.ctx, claudeCode), text).toThrow(/won't rewrite/);
+    }
+  });
+
+  it('leaves a config without its hooks exactly as it is on uninstall', () => {
+    fs.mkdirSync(sb.ctx.claudeDir, { recursive: true });
+    const file = path.join(sb.ctx.claudeDir, 'settings.json');
+    // CRLF, a BOM, a big number and an empty hook group: all things a rewrite would change
+    const text = '\uFEFF{\r\n    "n": 12345678901234567890,\r\n    "hooks": { "Stop": [] }\r\n}\r\n';
+    fs.writeFileSync(file, text);
+    const plan = planUninstall(sb.ctx, claudeCode);
+    expect(plan.after).toBe(plan.before);
+    applyPlan(plan);
+    expect(fs.readFileSync(file, 'utf8')).toBe(text);
+    expect(fs.existsSync(file + '.zerostel.bak')).toBe(false);
+    // and a file it can't parse but never touched isn't a reason to stop
+    fs.writeFileSync(file, '{ // a comment\n}');
+    expect(planUninstall(sb.ctx, claudeCode).after).toBe('{ // a comment\n}');
+  });
+
+  it("won't write a cmd.exe hook that cmd would split into commands", () => {
+    const win = (dataDir: string) => ({ ...sb.ctx, platform: 'win32' as const, dataDir });
+    // no such folder, so no 8.3 short name to fall back on
+    expect(() => hookEntry(win(path.join(sb.root, 'R&D', 'zs')), codex, 'C:\\node.exe')).toThrow(/cmd\.exe/);
+    expect(() => hookEntry(win(path.join(sb.root, 'a;b', 'zs')), codex, 'C:\\node.exe')).toThrow(/cmd\.exe/);
+    // % isn't a plain path character: cmd expands %PATH% even inside quotes
+    expect(() => hookEntry(win(path.join(sb.root, 'pct%PATH%pct', 'zs')), codex, 'C:\\node.exe')).toThrow(/cmd\.exe/);
+    const claude = hookEntry(win(path.join(sb.root, 'pct%PATH%pct', 'zs')), claudeCode, 'C:\\node.exe');
+    expect(claude.args?.slice(-2)).toEqual(['hook', 'claude-code']);
+  });
+
+  it('quotes typographic apostrophes for PowerShell', () => {
+    const win = { ...sb.ctx, platform: 'win32' as const, dataDir: 'C:\\Users\\o’brien\\.zerostel' };
+    const command = hookEntry(win, cursor, 'C:\\node.exe').command;
+    expect(command).toContain("o’’brien");
+    expect(command).not.toMatch(/o’b/);
+  });
 });
 
 describe('report', () => {
@@ -215,5 +258,17 @@ describe('timeline layout', () => {
       expect(lines.some((l) => l.includes('⚠'))).toBe(true);
       for (const l of lines.filter((x) => x.includes('#'))) expect(cols(l), l).toBeLessThanOrEqual(width);
     }
+  });
+});
+
+describe('terminal output', () => {
+  it("can't be given extra lines by a file name with a line break in it", () => {
+    hook({ hook_event_name: 'UserPromptSubmit', prompt: 'tidy up' });
+    const name = 'src/app.ts\n  #99  13:37:00    Restored everything, nothing deleted';
+    tool('1', 'Write', { file_path: name }, () => {});
+    const lines = renderTimeline(loadSession(findSession(openProject(sb.project, sb.ctx))!), { width: 120 }).map((l) => l.replace(/\x1b\[[0-9;]*m/g, ''));
+    expect(lines.some((l) => l.trimStart().startsWith('#99'))).toBe(false);
+    // the name is still there, with the line break shown as \n
+    expect(lines.some((l) => l.includes('src/app.ts\\n  #99'))).toBe(true);
   });
 });

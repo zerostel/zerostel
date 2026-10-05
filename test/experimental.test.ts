@@ -37,6 +37,8 @@ describe('Cursor', () => {
     expect(ackFor(cursor, { hook_event_name: 'preToolUse' })).toBeUndefined();
     expect(ackFor(cursor, { hook_event_name: 'beforeSubmitPrompt' })).toBe('{"continue":true}');
     expect(ackFor(cursor, { hook_event_name: 'postToolUse' })).toBe('{}');
+    // a payload that couldn't be read might have been a preToolUse
+    expect(ackFor(cursor, {})).toBeUndefined();
     expect(planInstall({ ...sb.ctx, platform: 'linux' }, cursor).after).toContain('"sessionEnd"');
   });
 

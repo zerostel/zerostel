@@ -37,11 +37,12 @@ Zerostel runs inside every agent session, in projects you didn't necessarily wri
 - **Zero runtime dependencies.** One bundled file plus git.
 - **Never in the way, never silent on a decision.** Hooks always exit 0 and log their own errors, so a Zerostel problem doesn't stop your agent. A guardrail decision is made, and sent to the agent, before anything is recorded, so neither a failure nor a slow snapshot can turn a "deny" into silence. A broken `policy.json` falls back to the last version that worked.
 - **Private by default.** `~/.zerostel` is owner-only; the audit key, policy and error log are owner-only files. Nothing is sent anywhere.
-- **Everything reversible is reversible twice.** Every rewind snapshots first, so it can be undone, including the files outside the project and the environment variables it put back.
+- **Everything reversible is reversible twice.** Every rewind snapshots first, so it can be undone, including the files outside the project and the environment variables it put back. A rewind cut short is recorded before it starts, so it can be undone too.
+- **Nothing goes without a copy.** A rewind never deletes or overwrites a file the snapshot it just took has no exact copy of: one git couldn't read, one snapshots leave out (excluded, too large, ignored), a watched file grown past the size limit. It leaves those alone and says so, in the preview too. Environment variable values that were damaged when recorded, or aren't plain strings, are left alone the same way.
 
 ## Reviews
 
-Zerostel's code has been reviewed for security in several rounds, by more than one reviewer, each covering what was added since the previous one: the snapshot and restore engine, program lookup on Windows, the web UI, the agent adapters, plugins and installers, the release workflow, the audit chain, guardrails, the MCP server and the watched-file feature. Findings are fixed with a regression test; the tests live in `test/security.test.ts`, `test/security-boundaries.test.ts`, `test/ui.test.ts`, `test/zerotrust.test.ts`, `test/guard-gaps.test.ts` and `test/review7.test.ts`. A review finds what it finds; report anything else through [SECURITY.md](../SECURITY.md).
+Zerostel's code has been reviewed for security in several rounds, by more than one reviewer, each covering what was added since the previous one: the snapshot and restore engine, program lookup on Windows, the web UI, the agent adapters, plugins and installers, the release workflow, the audit chain, guardrails, the MCP server and the watched-file feature. Findings are fixed with a regression test; the tests live in `test/security.test.ts`, `test/security-boundaries.test.ts`, `test/ui.test.ts`, `test/zerotrust.test.ts`, `test/guard-gaps.test.ts`, `test/review7.test.ts` and `test/dataloss.test.ts`. A review finds what it finds; report anything else through [SECURITY.md](../SECURITY.md).
 
 Notable fixes, so you know the kind of thing that's checked:
 

@@ -70,13 +70,37 @@ export function assertProjectIdentity(p: Pick<Project, 'root' | 'dir'>, platform
 
 /**
  * Snapshotting a whole home directory or drive would copy far too much, so
- * agents started there only get a timeline, no snapshots.
+ * agents started there only get a timeline, no snapshots. The same goes for
+ * a folder above the home directory (`C:\Users`, `/home`), which would also
+ * copy Zerostel's own store into itself on every snapshot, and for anything
+ * inside that store.
  */
 export function unsafeRoot(root: string, ctx: Ctx): string | null {
   const r = key(root, ctx.platform);
+  const within = (child: string, parent: string) => child === parent || child.startsWith(parent + '/');
   if (r === key(ctx.home, ctx.platform)) return 'the home directory';
   if (path.parse(path.resolve(root)).root.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase() === r.toLowerCase() || r === '') return 'a drive or filesystem root';
+  if (within(key(ctx.home, ctx.platform), r)) return 'a folder that contains the home directory';
+  if (within(r, key(ctx.dataDir, ctx.platform))) return "Zerostel's own data folder";
   return null;
+}
+
+/**
+ * Zerostel's data folder as a path inside the project, when someone put it
+ * there (ZEROSTEL_DIR=./.zerostel). Snapshots leave it out and rewinds never
+ * write into it. Null when it lives elsewhere, as it normally does.
+ */
+export function storeInProject(p: Pick<Project, 'root' | 'dir'>): string | null {
+  const real = (x: string) => {
+    try {
+      return fs.realpathSync.native(x);
+    } catch {
+      return path.resolve(x);
+    }
+  };
+  const rel = path.relative(real(p.root), real(path.dirname(path.dirname(p.dir))));
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  return rel.split(path.sep).join('/');
 }
 
 export interface ProjectInfo {

@@ -89,7 +89,8 @@ export function isBatch(file: string): boolean {
 export function runTool(cmd: string, args: string[], timeoutMs = 10_000): { status: number | null; stdout: string; stderr: string } | null {
   const exe = findExecutable(cmd);
   if (!exe) return null;
-  if (isBatch(exe) && args.some((a) => !/^[\w@%+=:,./-]+$/.test(a))) return null;
+  // no %: cmd expands %NAME% wherever it appears
+  if (isBatch(exe) && args.some((a) => !/^[\w@+=:,./-]+$/.test(a))) return null;
   const opts = { encoding: 'utf8' as const, timeout: timeoutMs, windowsHide: true, cwd: neutralCwd(), env: childEnv(), maxBuffer: 32 * 1024 * 1024 };
   const r = isBatch(exe)
     ? spawnSync(comspec(), ['/d', '/s', '/c', `""${exe}" ${args.join(' ')}"`], { ...opts, windowsVerbatimArguments: true })

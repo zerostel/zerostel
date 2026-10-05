@@ -53,6 +53,29 @@ export function patchFiles(patch: string): string[] {
 // Argument names that hold a path, whatever the agent calls them: file_path,
 // filePath, AbsolutePath, TargetFile, SearchDirectory, dir_path, paths, cwd...
 const PATH_ARG = /(?:path|paths|file|files|filename|dir|directory|folder|target|dest|destination|cwd|workdir)$/;
+// Arguments that carry text rather than a location: a path written inside
+// them is content (a file that mentions ~/.ssh), not something the tool opens.
+const TEXT_ARG = /^(?:content|contents|text|body|newstring|oldstring|newstr|oldstr|patch|diff|command|commands|cmd|script|code|prompt|description|message|query|pattern|regex|replacement|reason|title|summary)$/;
+
+/**
+ * A value that is a location however its argument is named (`source`, `uri`,
+ * `location`...): absolute, home-relative, explicitly relative, or a file:
+ * URL, which is returned as the path it points at.
+ */
+export function pathShaped(v: string): string | undefined {
+  if (v.length > 4096 || /[\r\n]/.test(v)) return undefined;
+  const url = /^file:\/\/(?:localhost)?(\/.*)$/i.exec(v);
+  if (url) {
+    let p: string;
+    try {
+      p = decodeURIComponent(url[1]!);
+    } catch {
+      p = url[1]!;
+    }
+    return /^\/[A-Za-z]:[\\/]/.test(p) ? p.slice(1) : p;
+  }
+  return /^(?:~(?:[\\/]|$)|\$HOME\b|\$\{HOME\}|%USERPROFILE%|%HOMEPATH%|[A-Za-z]:[\\/]|\\\\|\/|\.{1,2}[\\/])/i.test(v) ? v : undefined;
+}
 
 /**
  * Every path a tool call's arguments name, so a rule sees them however the
@@ -63,13 +86,18 @@ function argPaths(...inputs: (Record<string, unknown> | undefined)[]): { paths: 
   const out = new Set<string>();
   let budget = 10_000;
   let incomplete: string | undefined;
-  const visit = (v: unknown, pathKey: boolean, depth: number): void => {
+  const visit = (v: unknown, key: 'path' | 'text' | 'other', depth: number): void => {
     if (--budget < 0) {
       incomplete ??= 'arguments too large to look through';
       return;
     }
     if (typeof v === 'string') {
-      if (pathKey && v) out.add(v);
+      if (!v) return;
+      if (key === 'path') out.add(pathShaped(v) ?? v);
+      else if (key === 'other') {
+        const p = pathShaped(v);
+        if (p) out.add(p);
+      }
       return;
     }
     if (!v || typeof v !== 'object') return;
@@ -78,12 +106,15 @@ function argPaths(...inputs: (Record<string, unknown> | undefined)[]): { paths: 
       return;
     }
     if (Array.isArray(v)) {
-      for (const x of v) visit(x, pathKey, depth + 1);
+      for (const x of v) visit(x, key, depth + 1);
       return;
     }
-    for (const [k, x] of Object.entries(v)) visit(x, PATH_ARG.test(k.toLowerCase().replace(/[_-]/g, '')), depth + 1);
+    for (const [k, x] of Object.entries(v)) {
+      const name = k.toLowerCase().replace(/[_-]/g, '');
+      visit(x, PATH_ARG.test(name) ? 'path' : TEXT_ARG.test(name) ? 'text' : 'other', depth + 1);
+    }
   };
-  for (const ti of inputs) visit(ti ?? {}, false, 0);
+  for (const ti of inputs) visit(ti ?? {}, 'other', 0);
   return { paths: [...out], incomplete };
 }
 
@@ -290,9 +321,12 @@ function snapHome(env: Env): void {
 
 // A skipped snapshot (project too large, paused) still records the step. A
 // first snapshot that didn't finish in time carries on in the background.
-function trySnapshot(p: Project, msg: string, startBaseline?: (root: string) => void): string | undefined {
+// Files git couldn't copy are reported (errors.log, doctor); rewinds leave them alone.
+function trySnapshot(p: Project, msg: string, startBaseline?: (root: string) => void, problem?: (m: string) => void): string | undefined {
   try {
-    return snapshot(p, msg).sha;
+    const s = snapshot(p, msg);
+    if (s.incomplete) problem?.(`snapshot incomplete, some files keep an older copy: ${s.incomplete}`);
+    return s.sha;
   } catch (e) {
     if (e instanceof BaselinePending) {
       if (startBaseline && !baselineRunning(p)) startBaseline(p.root);
@@ -306,7 +340,7 @@ function trySnapshot(p: Project, msg: string, startBaseline?: (root: string) => 
 function snap(env: Env, msg: string): string | undefined {
   snapHome(env);
   if (!env.canSnap) return undefined;
-  const s = trySnapshot(env.p, msg, env.startBaseline);
+  const s = trySnapshot(env.p, msg, env.startBaseline, (m) => (env.result.problem ??= m));
   if (!s) return undefined;
   // anything that changed since our last snapshot happened outside the agent
   if (env.st.lastSnap && env.st.lastSnap !== s) {
@@ -322,6 +356,14 @@ function snap(env: Env, msg: string): string | undefined {
  * to since. Claude Code exports that as CLAUDE_PROJECT_DIR.
  */
 const PROJECT_DIR_ENV: Record<string, string> = { 'claude-code': 'CLAUDE_PROJECT_DIR', cursor: 'CURSOR_PROJECT_DIR', gemini: 'GEMINI_PROJECT_DIR' };
+
+function isDir(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 function projectDir(adapter: Adapter, input: HookInput, ctx: Ctx): string {
   const name = PROJECT_DIR_ENV[adapter.id];
@@ -431,7 +473,7 @@ export function handleHook(
   if (input.moment === 'pre') Object.assign(result, guard(base, tool0, input.tool_input ?? {}, p.root, shellCwd, input.raw_input));
   if (result.decision) opts.onDecision?.(result);
   const ref = sessionRef(p, agent, sessionId);
-  const canSnap = !unsafeRoot(p.root, ctx) && gitVersion() !== null;
+  const canSnap = !unsafeRoot(p.root, ctx) && isDir(p.root) && gitVersion() !== null;
 
   try {
     record(p, ref, canSnap);
@@ -531,7 +573,7 @@ export function handleHook(
       }
       if (changesFiles(tool) && canSnap) {
         const before = pending?.snap ?? st.lastSnap;
-        after = trySnapshot(p, `after ${tool}`, opts.startBaseline);
+        after = trySnapshot(p, `after ${tool}`, opts.startBaseline, (m) => (result.problem ??= m));
         files = before && after ? changes(p, before, after) : [];
         if (after) st.lastSnap = after;
       }

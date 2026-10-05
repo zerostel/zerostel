@@ -25,6 +25,8 @@ export type Ev =
   | { e: 'change'; ts: string; id: string; from: string; to: string; files: FileChange[] }
   | { e: 'turn'; ts: string; snap?: string; usage?: Usage; model?: string }
   | { e: 'snapshot'; ts: string; id: string; snap: string; message: string }
+  // a rewind about to change files; the 'restore' event with the same id says it finished
+  | { e: 'rewinding'; ts: string; id: string; from: string; label: string }
   | { e: 'restore'; ts: string; id: string; from: string; to: string; label: string; files: FileChange[]; homeFrom?: string; homeTo?: string }
   // watched files outside the project changed; from/to are snapshots of ~/.zerostel/home
   | { e: 'home'; ts: string; id: string; from?: string; to: string; files: FileChange[] }
@@ -138,12 +140,31 @@ function stateFile(ref: SessionRef): string {
 }
 
 export function readState(ref: SessionRef): SessionState {
+  const fresh = (): SessionState => ({ pending: {}, transcriptOffset: 0, usage: emptyUsage(), seen: [] });
+  let s: Partial<SessionState>;
   try {
-    const s = JSON.parse(fs.readFileSync(stateFile(ref), 'utf8')) as Partial<SessionState>;
-    return { pending: {}, transcriptOffset: 0, usage: emptyUsage(), seen: [], ...s };
+    s = JSON.parse(fs.readFileSync(stateFile(ref), 'utf8')) as Partial<SessionState>;
   } catch {
-    return { pending: {}, transcriptOffset: 0, usage: emptyUsage(), seen: [] };
+    return fresh();
   }
+  // a damaged state file starts over rather than stopping every hook that reads it
+  const obj = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
+  const strings = (v: unknown) => Array.isArray(v) && v.every((x) => typeof x === 'string');
+  const usage = s.usage as unknown as Record<string, unknown> | undefined;
+  if (
+    !obj(s) ||
+    (s.pending !== undefined && !obj(s.pending)) ||
+    (s.transcriptOffset !== undefined && !Number.isFinite(s.transcriptOffset)) ||
+    (s.usage !== undefined && !(obj(usage) && ['input', 'output', 'cacheRead', 'cacheWrite'].every((k) => typeof usage![k] === 'number'))) ||
+    (s.seen !== undefined && !strings(s.seen)) ||
+    (s.recent !== undefined && !strings(s.recent)) ||
+    (s.lastSnap !== undefined && typeof s.lastSnap !== 'string') ||
+    (s.lastHome !== undefined && typeof s.lastHome !== 'string') ||
+    (s.hooks !== undefined && !obj(s.hooks))
+  ) {
+    return fresh();
+  }
+  return { ...fresh(), ...s };
 }
 
 export function writeState(ref: SessionRef, s: SessionState): void {
@@ -248,10 +269,18 @@ export function loadSession(ref: SessionRef): Session {
       case 'snapshot':
         s.steps.push({ n: 0, id: ev.id, type: 'snapshot', ts: ev.ts, summary: ev.message || 'Snapshot', before: ev.snap, after: ev.snap, files: [] });
         break;
-      case 'restore':
-        s.steps.push({ n: 0, id: ev.id, type: 'restore', ts: ev.ts, summary: ev.label, before: ev.from, after: ev.to, files: ev.files });
+      case 'rewinding':
+        // replaced by the 'restore' event with the same id once the rewind finishes
+        s.steps.push({ n: 0, id: ev.id, type: 'restore', ts: ev.ts, summary: `${ev.label} (cut short: some files may not be back; undo returns to before it)`, before: ev.from, files: [] });
+        break;
+      case 'restore': {
+        const started = s.steps.findIndex((x) => x.id === ev.id && x.type === 'restore');
+        if (started >= 0) s.steps.splice(started, 1);
+        // (set here: with the placeholder gone, the loop below wouldn't see this step as new)
+        s.steps.push({ n: 0, id: ev.id, type: 'restore', ts: ev.ts, summary: ev.label, before: ev.from, after: ev.to, files: ev.files, homeBefore: ev.homeFrom, homeAfter: ev.homeTo });
         if (ev.homeTo) home = ev.homeTo;
         break;
+      }
       case 'home':
         home = ev.to;
         if (ev.from && ev.files.length) s.steps.push({ n: 0, id: ev.id, type: 'home', ts: ev.ts, summary: describeFiles(ev.files), files: ev.files, homeBefore: ev.from, homeAfter: ev.to });

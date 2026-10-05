@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { claudeCode } from '../src/agents/adapters.js';
 import { handleHook, patchFiles, toolKind } from '../src/agents/hooks.js';
@@ -48,6 +49,23 @@ describe('the guard sees every path a tool call names', () => {
     // a tool no table knows, with an argument name no table lists
     const res = handleHook('antigravity', { conversationId: 'a', workspacePaths: [sb.project], stepIdx: 1, toolCall: { name: 'new_tool', args: { DestinationFile: key() } } }, sb.ctx, 'PreToolUse');
     expect(res.decision?.action).toBe('deny');
+  });
+
+  it('reads a location under any argument name, file: URLs included', () => {
+    // an MCP tool whose path argument is called source, uri or location
+    const call = (args: Record<string, unknown>) =>
+      handleHook('claude-code', { session_id: 'm', cwd: sb.project, hook_event_name: 'PreToolUse', tool_name: 'mcp__files__read', tool_use_id: 'm1', tool_input: args }, sb.ctx).decision?.action;
+    expect(call({ source: key() })).toBe('deny');
+    expect(call({ uri: pathToFileURL(key()).href })).toBe('deny');
+    expect(call({ location: '~/.ssh/id_ed25519' })).toBe('deny');
+    expect(call({ options: { from: [key()] } })).toBe('deny');
+    // a URL or a plain word is not a path
+    expect(call({ source: 'https://example.com/.ssh/id_ed25519', name: 'id_ed25519' })).toBeUndefined();
+  });
+
+  it("doesn't mistake text that mentions a path for one the tool opens", () => {
+    const res = handleHook('claude-code', { session_id: 't', cwd: sb.project, hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't1', tool_input: { file_path: path.join(sb.project, 'notes.md'), content: `keys live in ${key()}` } }, sb.ctx);
+    expect(res.decision).toBeUndefined();
   });
 
   it('checks the arguments as sent as well as after renaming', () => {

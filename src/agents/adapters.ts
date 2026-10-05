@@ -285,8 +285,13 @@ export const cursor: Adapter = {
   // Cursor checks the answer against each event's schema, and one that doesn't
   // fit blocks a tool call. preToolUse needs a "permission", and "allow" could
   // skip Cursor's own approval, so it gets no answer at all (Cursor runs the
-  // tool, as for a hook that failed). The rest take `{}`, or "go on".
-  ack: (raw) => (raw.hook_event_name === 'preToolUse' ? undefined : raw.hook_event_name === 'beforeSubmitPrompt' ? '{"continue":true}' : '{}'),
+  // tool, as for a hook that failed). The rest take `{}`, or "go on". A
+  // payload that couldn't be read might have been a preToolUse: no answer.
+  ack: (raw) => {
+    const event = raw.hook_event_name;
+    if (event === 'beforeSubmitPrompt') return '{"continue":true}';
+    return typeof event === 'string' && event && event !== 'preToolUse' ? '{}' : undefined;
+  },
   afterInstall: 'Cursor: hooks reload on save. The Cursor CLI sends no prompt events, so there undo goes back one change at a time; on Windows run it from PowerShell, not Git Bash.',
   // Cursor ignores "ask" in hooks, so it blocks
   decide: (d) => JSON.stringify({ permission: 'deny', user_message: decisionText(d, false), agent_message: decisionText(d, false) }),
@@ -574,8 +579,10 @@ function send(payload) {
     const answer = () => {
       try { return JSON.parse(out || '{}'); } catch { return null; }
     };
+    let body;
     let child;
     try {
+      body = serialize(payload);
       child = spawn(ARGV[0], [...ARGV.slice(1), 'hook', 'opencode'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
     } catch {
       return finish({});
@@ -593,7 +600,24 @@ function send(payload) {
     });
     child.on('close', () => finish(answer() ?? {}));
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify(payload));
+    child.stdin.end(body);
+  });
+}
+
+// Tool arguments can hold what JSON can't (a BigInt, an object that loops
+// back on itself); that must never turn into an error that blocks the tool.
+function serialize(payload) {
+  try {
+    return JSON.stringify(payload);
+  } catch {}
+  const seen = new WeakSet();
+  return JSON.stringify(payload, (k, v) => {
+    if (typeof v === 'bigint') return String(v);
+    if (v && typeof v === 'object') {
+      if (seen.has(v)) return '[Circular]';
+      seen.add(v);
+    }
+    return v;
   });
 }
 
@@ -604,7 +628,7 @@ function post(payload) {
     const child = spawn(ARGV[0], [...ARGV.slice(1), 'hook', 'opencode'], { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true, detached: true });
     child.on('error', () => {});
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify(payload));
+    child.stdin.end(serialize(payload));
     child.unref();
   } catch {}
 }
@@ -719,8 +743,10 @@ function send(payload) {
     const answer = () => {
       try { return JSON.parse(out || '{}'); } catch { return null; }
     };
+    let body;
     let child;
     try {
+      body = serialize(payload);
       child = spawn(ARGV[0], [...ARGV.slice(1), 'hook', 'deepseek'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
     } catch {
       return finish({});
@@ -738,7 +764,24 @@ function send(payload) {
     });
     child.on('close', () => finish(answer() ?? {}));
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify(payload));
+    child.stdin.end(body);
+  });
+}
+
+// Tool arguments can hold what JSON can't (a BigInt, an object that loops
+// back on itself); that must never turn into an error that blocks the tool.
+function serialize(payload) {
+  try {
+    return JSON.stringify(payload);
+  } catch {}
+  const seen = new WeakSet();
+  return JSON.stringify(payload, (k, v) => {
+    if (typeof v === 'bigint') return String(v);
+    if (v && typeof v === 'object') {
+      if (seen.has(v)) return '[Circular]';
+      seen.add(v);
+    }
+    return v;
   });
 }
 
@@ -748,7 +791,7 @@ function post(payload) {
     const child = spawn(ARGV[0], [...ARGV.slice(1), 'hook', 'deepseek'], { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true, detached: true });
     child.on('error', () => {});
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify(payload));
+    child.stdin.end(serialize(payload));
     child.unref();
   } catch {}
 }

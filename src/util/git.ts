@@ -54,6 +54,8 @@ function env(repo: GitRepo, magic: boolean): NodeJS.ProcessEnv {
 export interface RunOpts {
   input?: string | Buffer;
   allowFail?: boolean;
+  /** with allowFail: told when git exits non-zero anyway */
+  onFail?: (e: { code: number | null; stderr: string }) => void;
   maxBuffer?: number;
   magic?: boolean; // allow pathspec magic; every path must then be wrapped with exclude()
   timeoutMs?: number;
@@ -89,6 +91,7 @@ export function gitBuf(repo: GitRepo, args: string[], opts: RunOpts = {}): Buffe
     const timedOut = (r.error as NodeJS.ErrnoException).code === 'ETIMEDOUT';
     throw new GitError(timedOut ? `git ${args[0]} took longer than ${opts.timeoutMs}ms` : `git ${args[0]} failed: ${r.error.message}`, '', null, timedOut);
   }
+  if (r.status !== 0 && opts.allowFail) opts.onFail?.({ code: r.status, stderr: r.stderr?.toString('utf8') ?? '' });
   if (r.status !== 0 && !opts.allowFail) {
     const stderr = r.stderr?.toString('utf8') ?? '';
     throw new GitError(`git ${args.join(' ')} failed: ${stderr.trim().split('\n')[0]}`, stderr, r.status);

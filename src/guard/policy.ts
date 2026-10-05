@@ -430,6 +430,7 @@ export function evaluate(policy: Policy | null, call: Call): Decision | null {
     ask ??= d;
   }
   // part of the call went unchecked: that's not the same as nothing matching
-  if (!ask && gaps.length) return { action: 'ask', reason: `too much to check against your rules (${gaps.join(', ')}); look at it before it runs`, rule: 0 };
+  // (unless no rule looks at paths or commands, the only parts that can go unchecked)
+  if (!ask && gaps.length && policy.rules.some((r) => r.paths || r.commands)) return { action: 'ask', reason: `too much to check against your rules (${gaps.join(', ')}); look at it before it runs`, rule: 0 };
   return ask;
 }

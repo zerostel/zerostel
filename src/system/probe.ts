@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { findExecutable, runTool } from '../util/exec.js';
 import type { Ctx } from '../util/paths.js';
 
@@ -113,21 +116,55 @@ function brewList(): Record<string, string> | null {
 
 const KEY = 'HKCU\\Environment';
 
+const HEX_TYPES: Record<string, string> = { '0': 'REG_NONE', '1': 'REG_SZ', '2': 'REG_EXPAND_SZ', '3': 'REG_BINARY', '4': 'REG_DWORD', '7': 'REG_MULTI_SZ', b: 'REG_QWORD' };
+
+/**
+ * Values from a `reg export` file. The file is UTF-16, so every character
+ * comes through exactly; `reg query` output goes through the console code
+ * page instead, which turns a Chinese folder name in PATH into question
+ * marks. Types other than plain and expandable strings keep their raw bytes
+ * as hex: enough to notice a change, never written back.
+ */
+export function parseRegExport(text: string): Record<string, EnvValue> {
+  const out: Record<string, EnvValue> = {};
+  const src = text.replace(/^﻿/, '').replace(/,\\\r?\n[ \t]*/g, ',');
+  const unescape = (x: string) => x.replace(/\\([\s\S])/g, '$1');
+  const re = /^"((?:[^"\\]|\\[\s\S])*)"=(?:"((?:[^"\\]|\\[\s\S])*)"|dword:([0-9a-f]{8})|hex(?:\(([0-9a-f]+)\))?:([0-9a-f,]*))\r?$/gim;
+  for (const m of src.matchAll(re)) {
+    const name = unescape(m[1]!);
+    if (m[2] !== undefined) out[name] = { type: 'REG_SZ', value: unescape(m[2]) };
+    else if (m[3] !== undefined) out[name] = { type: 'REG_DWORD', value: `0x${m[3].toLowerCase()}` };
+    else {
+      const kind = (m[4] ?? '3').toLowerCase().replace(/^0+(?=.)/, '');
+      const type = HEX_TYPES[kind] ?? `REG_TYPE_${kind}`;
+      const hex = (m[5] ?? '').toLowerCase();
+      if (type === 'REG_SZ' || type === 'REG_EXPAND_SZ') out[name] = { type, value: Buffer.from(hex.replace(/,/g, ''), 'hex').toString('utf16le').replace(/\0+$/, '') };
+      else out[name] = { type, value: hex };
+    }
+  }
+  return out;
+}
+
 // reg.exe by absolute path; arguments go straight to it, never through a shell
 const regEnv: UserEnv = {
   read() {
-    const r = runTool('reg', ['query', KEY]);
-    if (!r || r.status !== 0) return null;
-    const out: Record<string, EnvValue> = {};
-    for (const line of r.stdout.split(/\r?\n/)) {
-      const m = /^ {4}(.+?) {4}(REG_\w+)(?: {4}(.*))?$/.exec(line);
-      if (m) out[m[1]!] = { type: m[2]!, value: m[3] ?? '' };
+    let dir: string | null = null;
+    try {
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zerostel-env-'));
+      const file = path.join(dir, 'env.reg');
+      const r = runTool('reg', ['export', KEY, file, '/y']);
+      if (!r || r.status !== 0) return null;
+      return parseRegExport(fs.readFileSync(file).toString('utf16le'));
+    } catch {
+      return null;
+    } finally {
+      // the values can hold secrets; don't leave a copy behind
+      if (dir) fs.rmSync(dir, { recursive: true, force: true });
     }
-    return out;
   },
   set(name, v) {
-    const type = v.type === 'REG_EXPAND_SZ' ? 'REG_EXPAND_SZ' : 'REG_SZ';
-    const r = runTool('reg', ['add', KEY, '/v', name, '/t', type, '/d', v.value, '/f']);
+    checkWritable(name, v);
+    const r = runTool('reg', ['add', KEY, '/v', name, '/t', v.type, '/d', v.value, '/f']);
     if (!r || r.status !== 0) throw new Error(`couldn't set ${name}: ${r?.stderr.trim() || 'reg.exe failed'}`);
   },
   remove(name) {
@@ -135,6 +172,17 @@ const regEnv: UserEnv = {
     if (!r || r.status !== 0) throw new Error(`couldn't remove ${name}: ${r?.stderr.trim() || 'reg.exe failed'}`);
   },
 };
+
+/**
+ * Only plain and expandable strings are put back, and only intact ones.
+ * Versions before 0.1.3 read values through the console code page, so a
+ * recorded value can hold U+FFFD where a character was lost; writing that
+ * back would break the variable for good.
+ */
+export function checkWritable(name: string, v: EnvValue): void {
+  if (v.type !== 'REG_SZ' && v.type !== 'REG_EXPAND_SZ') throw new Error(`left ${name} alone: it was a ${v.type} value, which Zerostel doesn't write back; set it by hand`);
+  if (v.value.includes('�') || v.value.includes('\0')) throw new Error(`left ${name} alone: the recorded value is damaged, so writing it back would break it; set it by hand`);
+}
 
 const REAL: SystemProbe = {
   packages: (m) => (m === 'npm' ? npmList() : m === 'pip' ? pipList() : brewList()),

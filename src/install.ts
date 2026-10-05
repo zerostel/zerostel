@@ -89,8 +89,14 @@ function replaceExecutable(src: string, dest: string): void {
 }
 
 // a path that needs no quoting in bash, PowerShell or cmd (a ~ inside a
-// path, as in an 8.3 name like RUNNER~1, is plain text to all three)
-const SAFE_PATH = /^[\w@%+=:,./\\~-]+$/;
+// path, as in an 8.3 name like RUNNER~1, is plain text to all three; a %
+// is not: cmd expands %NAME%, quoted or not)
+const SAFE_PATH = /^[\w@+=:,./\\~-]+$/;
+
+// Inside quotes cmd.exe still acts on these: it drops the quotes around a
+// path holding any of them and runs the pieces as separate commands, the
+// first looked up in the current folder (the project) before PATH.
+const CMD_SPECIAL = /[&|<>^()%";]/;
 
 // cmd.exe chokes on quoted paths in some positions, so on Windows we hand
 // cmd-based agents a path without spaces or quotes (the 8.3 short name if needed).
@@ -121,9 +127,10 @@ export function shArg(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : shQuote(s);
 }
 
-// PowerShell single-quoted strings only escape ' (as '').
+// PowerShell single-quoted strings only escape a quote, by doubling it, and
+// PowerShell takes the typographic ones (‘ ’ ‚ ‛) as quotes too.
 export function psQuote(s: string): string {
-  return "'" + s.replace(/'/g, "''") + "'";
+  return "'" + s.replace(/['‘’‚‛]/g, '$&$&') + "'";
 }
 
 /** The command an agent should run, written the way it runs commands on this OS. */
@@ -135,8 +142,13 @@ export function hookEntry(ctx: Ctx, a: Adapter, node = process.execPath, event?:
   switch (a.windowsRunner) {
     case 'exec':
       return { type: 'command', command: shellPath(l.exe), args: [...l.args.map(shellPath), 'hook', a.id, ...extra] };
-    case 'cmd':
-      return { type: 'command', command: [shellPath(noSpaces(shimPath(ctx))), a.id, ...extra].join(' ') };
+    case 'cmd': {
+      const shim = noSpaces(shimPath(ctx));
+      if (CMD_SPECIAL.test(shim.replace(/^"(.*)"$/, '$1'))) {
+        throw new Error(`${a.name} runs hooks through cmd.exe, which can't run ${shimPath(ctx)} safely: the path has characters cmd reads as commands. Set ZEROSTEL_DIR to a plain folder (for example C:\\zerostel) and install again.`);
+      }
+      return { type: 'command', command: [shellPath(shim), a.id, ...extra].join(' ') };
+    }
     case 'shim': {
       const shim = shellPath(noSpaces(shimPath(ctx)));
       if (SAFE_PATH.test(shim)) return { type: 'command', command: [shim, a.id, ...extra].join(' ') };
@@ -218,6 +230,8 @@ export interface InstallPlan {
   warnings: string[];
   /** the file is Zerostel's own and should be deleted rather than rewritten */
   remove?: boolean;
+  /** keep a .zerostel.bak of a removed file that holds more than Zerostel wrote */
+  keepCopy?: boolean;
   /** a second file Zerostel owns (a plugin the config points to); empty content removes it */
   companion?: { file: string; content: string };
 }
@@ -279,7 +293,7 @@ export function planInstall(ctx: Ctx, a: Adapter, entryFor: HookEntry | ((event:
   }
 
   const entry = (event: string): HookEntry => (typeof entryFor === 'function' ? entryFor(event) : entryFor);
-  const cfg: Config = { ...(before.trim() ? {} : a.scaffold), ...stripOurs(readJson(file), a) };
+  const cfg: Config = { ...(before.trim() ? {} : a.scaffold), ...stripOurs(checkShape(readJson(file), file, a), a) };
   if (cfg.disableAllHooks) base.warnings.push(`"disableAllHooks" is true in ${file}, so hooks (and Zerostel) will not run.`);
   const lists: Record<string, unknown[]> = a.layout === 'group' ? {} : (cfg.hooks ??= {});
   for (const { event, matcher, timeout } of a.events) {
@@ -307,10 +321,47 @@ export function planUninstall(ctx: Ctx, a: Adapter): InstallPlan {
     // only delete the file if Zerostel wrote it: it runs one of the copies in ~/.zerostel/bin
     const ours = OUR_BIN.test(before) && before.includes(a.id);
     if (before && !ours) return { ...base, after: before, warnings: [`${file} was not written by Zerostel; left it alone.`] };
-    return { ...base, after: '', remove: !!before };
+    // someone may have added hooks of their own to it: a removed file that isn't exactly ours leaves a copy
+    return { ...base, after: '', remove: !!before, keepCopy: !!before && before !== a.render!(renderInput(a, launch(ctx))) };
   }
-  const after = before ? JSON.stringify(stripOurs(readJson(file), a), null, 2) + '\n' : '';
-  return { ...base, after };
+  // a file with none of Zerostel's hooks in it stays exactly as it is, byte for byte
+  if (!before.includes('zerostel')) return { ...base, after: before };
+  const cfg = checkShape(readJson(file), file, a);
+  if (!hasOurs(cfg, a)) return { ...base, after: before };
+  return { ...base, after: JSON.stringify(stripOurs(cfg, a), null, 2) + '\n' };
+}
+
+/**
+ * Hook settings that parse but aren't laid out the way the agent reads them
+ * are refused, not rewritten: merging into a string or a list of the wrong
+ * thing would mangle what the user wrote.
+ */
+function checkShape(cfg: Config, file: string, a: Adapter): Config {
+  const obj = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
+  const bad = (what: string) => new Error(`${file}: ${what}; Zerostel won't rewrite it. Fix it by hand and try again.`);
+  if (a.layout === 'group') {
+    if (GROUP in cfg && !obj(cfg[GROUP])) throw bad(`"${GROUP}" isn't an object`);
+    return cfg;
+  }
+  if (!('hooks' in cfg)) return cfg;
+  if (!obj(cfg.hooks)) throw bad('"hooks" isn\'t an object');
+  for (const [event, list] of Object.entries(cfg.hooks!)) {
+    if (!Array.isArray(list)) throw bad(`hooks.${event} isn't a list`);
+    if (a.layout === 'flat') continue;
+    for (const g of list) {
+      if (!obj(g)) throw bad(`hooks.${event} holds something that isn't a hook group`);
+      if ('hooks' in (g as object) && !Array.isArray((g as HookGroup).hooks)) throw bad(`a group in hooks.${event} has "hooks" that isn't a list`);
+    }
+  }
+  return cfg;
+}
+
+function hasOurs(cfg: Config, a: Adapter): boolean {
+  if (a.layout === 'group') return GROUP in cfg;
+  if (!cfg.hooks || typeof cfg.hooks !== 'object') return false;
+  return Object.values(cfg.hooks).some(
+    (list) => Array.isArray(list) && list.some((h) => (a.layout === 'flat' ? isOurs(h, a) : Array.isArray((h as HookGroup)?.hooks) && (h as HookGroup).hooks.some((x) => isOurs(x, a)))),
+  );
 }
 
 export function applyPlan(plan: InstallPlan): string | null {
@@ -334,8 +385,13 @@ function writeOwned(file: string, content: string): void {
 
 function applyMain(plan: InstallPlan): string | null {
   if (plan.remove) {
+    let backup: string | null = null;
+    if (plan.keepCopy && plan.before) {
+      backup = plan.file + '.zerostel.bak';
+      if (!fs.existsSync(backup)) fs.writeFileSync(backup, plan.before, { mode: fs.statSync(plan.file).mode & 0o777, flag: 'wx' });
+    }
     fs.rmSync(plan.file, { force: true });
-    return null;
+    return backup;
   }
   if (plan.before === plan.after) return null;
   fs.mkdirSync(path.dirname(plan.file), { recursive: true });
@@ -352,7 +408,13 @@ function applyMain(plan: InstallPlan): string | null {
   // a leftover tmp file would keep its old permissions; start fresh
   fs.rmSync(tmp, { force: true });
   fs.writeFileSync(tmp, plan.after, mode !== undefined ? { mode, flag: 'wx' } : { flag: 'wx' });
-  fs.renameSync(tmp, plan.file);
+  try {
+    fs.renameSync(tmp, plan.file);
+  } catch (e) {
+    // a read-only or locked file: leave it as it was, and no copy of it lying around
+    fs.rmSync(tmp, { force: true });
+    throw new Error(`couldn't write ${plan.file} (${(e as NodeJS.ErrnoException).code ?? (e as Error).message}); it is unchanged`);
+  }
   return backup;
 }
 
@@ -406,6 +468,15 @@ export function hookStatus(ctx: Ctx, a: Adapter): HookStatus {
   if (entry) {
     const exe = entry.args ? entry.command : (/^(?:& )?(['"])(.+?)\1/.exec(entry.command)?.[2] ?? entry.command.split(' ')[0]!);
     healthy = copied && fs.existsSync(exe);
+    // the Windows shim names the Node it was installed with; a version manager may have removed it since
+    if (healthy && /zerostel-hook\.cmd$/i.test(exe)) {
+      try {
+        const node = /^"([^"%]+)"/.exec(fs.readFileSync(exe, 'utf8').split(/\r?\n/)[1] ?? '')?.[1];
+        if (node && !fs.existsSync(node)) healthy = false;
+      } catch {
+        healthy = false;
+      }
+    }
   }
   const disabled = !!cfg.disableAllHooks || (a.layout === 'group' && (cfg[GROUP] as { enabled?: boolean } | undefined)?.enabled === false);
   return { installed: !!entry, healthy, disabled, command: entry ? [entry.command, ...(entry.args ?? [])].join(' ') : undefined };

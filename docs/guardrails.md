@@ -27,7 +27,7 @@ Rules live in `~/.zerostel/policy.json`. With no file there are no rules. `zeros
 
 Paths like `$HOME/.ssh`, `%USERPROFILE%\.ssh` or Git Bash's `/c/Users/...` are recognised for what they are.
 
-Rules match what a tool call says, not what it does: a script can reach a file without naming it. They catch mistakes and slow a misled agent down; they are not a sandbox. Blocked and asked-about calls show up in the timeline, the web UI and reports. A broken `policy.json` is reported by `zerostel status` and `doctor` rather than guessed at, and a problem inside Zerostel never blocks a tool.
+Rules match what a tool call says, not what it does: a script can reach a file without naming it. They catch mistakes and slow a misled agent down; they are not a sandbox. Blocked and asked-about calls show up in the timeline, the web UI and reports. A broken `policy.json` is reported by `zerostel status` and `doctor`, and the last version that worked stays in force. A problem inside Zerostel never blocks a tool. One exception, on purpose: a call too big to check in full (a command over 256 KB, more than 1,000 paths) is asked about rather than waved through when you have path or command rules, since padding a call is an easy way around them. Agents that can't ask treat that as a block.
 
 ## Recipes
 

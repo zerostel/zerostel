@@ -6,7 +6,7 @@ import { listProjects, openProject, projectRoot, type Project } from '../store/p
 import { listSessions, loadSession, regressions, shortId, summarize, type Session } from '../store/session.js';
 import { repoSize } from '../store/shadow.js';
 import { displayPath, tilde, type Ctx } from '../util/paths.js';
-import { ago, c, err, fmtBytes, fmtClock, fmtDate, out, truncate } from '../util/term.js';
+import { ago, c, err, fmtBytes, fmtClock, fmtDate, oneLine, out, truncate } from '../util/term.js';
 
 type Flags = { project?: string; json?: boolean; 'older-than'?: string; 'dry-run'?: boolean; force?: boolean; yes?: boolean };
 
@@ -62,7 +62,7 @@ export function find(p: Project, target: string | undefined, flags: Flags): void
   if (!hits.length) return out(c.dim(`No recorded step touched ${relToRoot}.`));
   const word = { A: c.green('added'), M: c.yellow('changed'), T: c.yellow('changed'), D: c.red('deleted') } as Record<string, string>;
   for (const h of hits.slice(0, 100)) {
-    out(`${c.dim(fmtDate(h.ts) + ':' + fmtClock(h.ts).slice(6))}  ${c.bold(shortId(h.session.id))} #${String(h.n).padEnd(4)} ${(word[h.status] ?? h.status).padEnd(16)} ${h.path}  ${c.dim(truncate(h.summary, 60))}`);
+    out(`${c.dim(fmtDate(h.ts) + ':' + fmtClock(h.ts).slice(6))}  ${c.bold(shortId(h.session.id))} #${String(h.n).padEnd(4)} ${(word[h.status] ?? h.status).padEnd(16)} ${oneLine(h.path)}  ${c.dim(truncate(oneLine(h.summary), 60))}`);
   }
   if (hits.length > 100) out(c.dim(`… ${hits.length - 100} more`));
   const last = hits[0]!;

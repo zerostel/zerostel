@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+Fixes from a security and data-safety review. Nothing to change on your side; the snapshot store updates itself on first use.
+
+Rewinds never lose work
+
+- A rewind no longer deletes or overwrites a file the snapshot it took just before has no exact copy of. That covers a file git couldn't read (locked by another program, no permission, a full disk), and a file snapshots leave out (`exclude`, over the size limit, ignored) that the rewind would have written over. Such files are left alone and listed, in the preview too.
+- A `.gitattributes` `working-tree-encoding` that git can't apply no longer makes it skip every file in a snapshot.
+- Snapshots that couldn't copy every file say so, in `errors.log` and after `zerostel snapshot`, instead of reporting "no changes".
+- A rewind cut short (the process killed, a power cut) is recorded before it starts, so `zerostel undo` can still take it back, and `prune` keeps the snapshot it needs.
+- A watched file that grew past 1 MB is no longer replaced with its older, smaller copy.
+- An agent started in a folder above your home folder (`C:\Users`, `/home`) gets a timeline but no snapshots: each one would have copied Zerostel's own store into itself. A data folder placed inside a project is left out of its snapshots and never written to by a rewind.
+- On Windows, user environment variables are read as Unicode, so a rewind no longer writes back a value with a non-English folder name garbled. Values recorded garbled by earlier versions, and values that aren't plain strings, are left alone.
+- A lock left by a process that has exited is cleared at once, and one whose owner is still running is never taken over, however long it runs. A long `prune` could otherwise lose a snapshot taken while it ran.
+- A file in a snapshot that is later replaced by a link to a folder no longer pulls that folder into the next snapshot (Windows).
+
+Agents and hooks
+
+- The MCP server's `rewind` applies only with the confirm code its preview gave, and only if the project hasn't changed since. The preview names the session it rewinds. It puts back project files only; watched files and environment variables are left to `zerostel rewind` in a terminal.
+- Guardrails now see a path under any argument name, `file:` URLs included.
+- File names with line breaks can't draw fake lines in `zerostel log` and other output.
+- A real secret that happens to contain a word like "example" or "test" is no longer mistaken for a placeholder and left unmasked.
+- A call too big to check in full is asked about only when you have path or command rules.
+
+Install and uninstall
+
+- Codex and Antigravity hooks are refused, with a clear message, when the data folder's path has characters cmd.exe would read as commands; before, such a path could run a program from the project folder. `%` no longer counts as a plain path character.
+- PowerShell hooks quote typographic apostrophes (`’`) in paths.
+- `zerostel uninstall` leaves config files without Zerostel's hooks exactly as they are, and a config it can't read for one agent no longer stops install or uninstall for the others.
+- Hook settings laid out in a way the agent wouldn't read are refused instead of rewritten; a read-only config leaves no temporary copy behind; a Copilot hooks file you added your own hooks to is backed up before uninstall removes it.
+- `zerostel doctor` notices when the Node a Windows hook runs has gone (a version manager removed it), and install warns when that Node looks temporary.
+- On Windows, a first snapshot of a project too big for a hook to scan goes on in the background instead of pausing snapshots for an hour.
+- Cursor gets no answer, rather than one that could block a tool, when its hook payload can't be read; the opencode and DeepSeek plugins can't fail a tool call over arguments JSON can't hold.
+- `zerostel rewind --only .` means the whole project.
+
 ## 0.1.2 (2026-10-05)
 
 - A step that deleted files keeps its warning mark on its own line in `zerostel log`, instead of wrapping it onto the next one.

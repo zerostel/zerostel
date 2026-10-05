@@ -61,12 +61,14 @@ Zerostel is a single Node script (bundled to `dist/cli.js`, no runtime dependenc
 
 `restore(target)` in `src/store/shadow.ts`:
 
+0. `applyRestore` first records a `rewinding` event with the current snapshot, so a rewind cut short can still be undone and `prune` keeps what it would go back to.
 1. Snapshot the current state (so the restore can be undone).
-2. Diff current → target. Every path must be a plain repo-relative path.
-3. Delete files that exist now but not in the target, unless a parent folder is a symlink, junction or file (then it's reported, not touched).
-4. Clear anything in the way of a file to write back, but only if the pre-restore snapshot holds a copy of it.
-5. `git checkout <target> -- <paths>` for the rest.
-6. `applyRestore` (`src/commands/rewind.ts`) snapshots again, compares the result with the target, and reports anything that still differs.
+2. Diff current → target. Every path must be a plain repo-relative path. Zerostel's own data folder, if it sits inside the project, is left out.
+3. Leave alone any file the snapshot from step 1 has no exact copy of: one git couldn't read (`diff-files` still shows it changed), or one snapshots leave out (excluded, too large, ignored) that the target would overwrite. These are reported, in the preview too.
+4. Delete files that exist now but not in the target, unless a parent folder is a symlink, junction or file (then it's reported, not touched).
+5. Clear anything in the way of a file to write back, but only if the pre-restore snapshot holds a copy of it.
+6. `git checkout <target> -- <paths>` for the rest.
+7. `applyRestore` (`src/commands/rewind.ts`) snapshots again, compares the result with the target, and reports anything that still differs.
 
 ## Adding an agent
 
@@ -95,7 +97,7 @@ Every event line gets `chain` = HMAC-SHA256(key, previous chain + "
 
 ## Guardrails
 
-`policy.json` is a list of rules: `action` (`deny` or `ask`), and any of `paths`, `commands`, `tools`, with optional `access: "write"` and `reason`. Paths come from the tool input (`file_path`, `path`, …, apply_patch headers) and from path-like words in shell commands. Commands are matched whole and split at `&&`, `||`, `;`, `|`. Deny wins over ask. A missing file means no rules; a broken one means no rules plus a problem reported in `errors.log`, `status` and `doctor`.
+`policy.json` is a list of rules: `action` (`deny` or `ask`), and any of `paths`, `commands`, `tools`, with optional `access: "write"` and `reason`. Paths come from the tool input (`file_path`, `path`, …, apply_patch headers) and from path-like words in shell commands. Commands are matched whole and split at `&&`, `||`, `;`, `|`. Deny wins over ask. A missing file means no rules; a broken one keeps the last version that worked (no rules if there never was one), and the problem is reported in `errors.log`, `status` and `doctor`.
 
 ## Watched files
 
@@ -103,7 +105,7 @@ Every event line gets `chain` = HMAC-SHA256(key, previous chain + "
 
 ## MCP server
 
-`zerostel mcp` (`src/mcp/server.ts`) reads JSON-RPC lines on stdin and answers on stdout: `initialize`, `tools/list`, `tools/call` for `checkpoint`, `timeline`, `rewind` (preview unless `apply: true`), `verify` and `check_policy`. It works on the project in its current directory only.
+`zerostel mcp` (`src/mcp/server.ts`) reads JSON-RPC lines on stdin and answers on stdout: `initialize`, `tools/list`, `tools/call` for `checkpoint`, `timeline`, `rewind` (preview unless `apply: true` comes with the `confirm` code of a preview of the same state), `verify` and `check_policy`. It works on the project in its current directory only.
 
 ## Session files
 

@@ -203,6 +203,20 @@ export function restoreHome(ctx: Ctx, target: string, opts: { dryRun?: boolean }
       res.kept.push(shown);
       continue;
     }
+    // not in the snapshot just taken (over the size limit, unreadable): if
+    // something is there now, there'd be no copy of it after overwriting
+    if (f.status === 'A') {
+      let there = true;
+      try {
+        fs.lstatSync(w.abs);
+      } catch (e) {
+        there = (e as NodeJS.ErrnoException).code !== 'ENOENT';
+      }
+      if (there) {
+        res.failed.push({ path: shown, error: 'Zerostel has no copy of it as it is now (over 1 MB, or unreadable); left alone' });
+        continue;
+      }
+    }
     res.restored.push(shown);
     if (opts.dryRun) continue;
     try {

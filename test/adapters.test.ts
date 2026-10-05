@@ -114,6 +114,18 @@ describe('Copilot CLI', () => {
     expect(hookStatus(linux(), copilot).installed).toBe(true);
     applyPlan(planUninstall(linux(), copilot));
     expect(fs.existsSync(file)).toBe(false);
+    expect(fs.existsSync(file + '.zerostel.bak')).toBe(false);
+  });
+
+  it('keeps a copy when the user added hooks of their own to its file', () => {
+    applyPlan(planInstall(linux(), copilot));
+    const file = path.join(sb.ctx.home, '.copilot', 'hooks', 'zerostel.json');
+    const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+    cfg.hooks.Stop = [{ type: 'command', bash: 'echo mine' }];
+    fs.writeFileSync(file, JSON.stringify(cfg));
+    applyPlan(planUninstall(linux(), copilot));
+    expect(fs.existsSync(file)).toBe(false);
+    expect(fs.readFileSync(file + '.zerostel.bak', 'utf8')).toContain('echo mine');
   });
 
   it("uninstall leaves a file with the same name alone if Zerostel didn't write it", () => {
@@ -144,6 +156,10 @@ describe('opencode', () => {
     expect(Object.keys(hooks).sort()).toEqual(['chat.message', 'event', 'tool.execute.after', 'tool.execute.before']);
     // calling a hook must never throw, even though the bin isn't installed here
     await expect((hooks['tool.execute.before'] as (i: unknown, o: unknown) => Promise<void>)({ tool: 'bash', sessionID: 's', callID: 'c' }, { args: {} })).resolves.toBeUndefined();
+    // nor when the arguments are something JSON can't hold
+    const loop: Record<string, unknown> = { n: 10n };
+    loop.self = loop;
+    await expect((hooks['tool.execute.before'] as (i: unknown, o: unknown) => Promise<void>)({ tool: 'bash', sessionID: 's', callID: 'c' }, { args: loop })).resolves.toBeUndefined();
   });
 
   it('maps its tool names and arguments', () => {

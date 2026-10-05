@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { exclude, git, GitError, type GitRepo } from '../util/git.js';
 import { sleepSync, withLock } from '../util/lock.js';
-import { assertProjectIdentity, writeProjectMeta, type Project } from './project.js';
+import { assertProjectIdentity, storeInProject, writeProjectMeta, type Project } from './project.js';
 
 // Dependency and cache folders that are big, regenerable and not worth a
 // snapshot. The project's own .gitignore applies on top of this.
@@ -34,7 +34,7 @@ export function lockFile(p: Project): string {
 }
 
 // Bump when the settings below change; older repos get them on next use.
-const REPO_VERSION = 2;
+const REPO_VERSION = 3;
 
 function configureRepo(p: Project): void {
   const cfg: [string, string][] = [
@@ -53,28 +53,36 @@ function configureRepo(p: Project): void {
   const info = path.join(p.repo.gitDir, 'info');
   fs.mkdirSync(info, { recursive: true });
   fs.writeFileSync(path.join(info, 'exclude'), DEFAULT_EXCLUDES.join('\n') + '\n');
-  // store bytes exactly as they are on disk: no eol conversion, no LFS
-  fs.writeFileSync(path.join(info, 'attributes'), '* -text -filter -ident\n');
+  // store bytes exactly as they are on disk: no eol conversion, no LFS, no
+  // re-encoding (a working-tree-encoding git can't apply makes `add` give up)
+  fs.writeFileSync(path.join(info, 'attributes'), '* -text -filter -ident -working-tree-encoding\n');
   fs.writeFileSync(path.join(p.dir, 'repo-version'), String(REPO_VERSION));
+}
+
+function repoVersion(p: Project): number {
+  try {
+    return Number(fs.readFileSync(path.join(p.dir, 'repo-version'), 'utf8')) || 0;
+  } catch {
+    return 0; // created before versioning, or not yet
+  }
 }
 
 export function ensureRepo(p: Project): void {
   assertProjectIdentity(p);
-  if (fs.existsSync(path.join(p.repo.gitDir, 'HEAD'))) {
-    let v = 0;
-    try {
-      v = Number(fs.readFileSync(path.join(p.dir, 'repo-version'), 'utf8'));
-    } catch {
-      // created before versioning
-    }
-    if (v < REPO_VERSION) configureRepo(p);
-    return;
-  }
+  const ready = () => fs.existsSync(path.join(p.repo.gitDir, 'HEAD')) && repoVersion(p) >= REPO_VERSION;
+  if (ready()) return;
+  // Several hooks start at once on a new project; one sets it up. A lock of
+  // its own: callers may already hold the project lock.
   fs.mkdirSync(p.dir, { recursive: true });
-  if (!fs.existsSync(p.repo.emptyConfig)) fs.writeFileSync(p.repo.emptyConfig, '');
-  writeProjectMeta(p);
-  git(p.repo, ['init', '-q']);
-  configureRepo(p);
+  withLock(path.join(p.dir, 'init.lock'), () => {
+    if (ready()) return;
+    if (!fs.existsSync(path.join(p.repo.gitDir, 'HEAD'))) {
+      if (!fs.existsSync(p.repo.emptyConfig)) fs.writeFileSync(p.repo.emptyConfig, '');
+      writeProjectMeta(p);
+      git(p.repo, ['init', '-q']);
+    }
+    configureRepo(p);
+  });
 }
 
 export function head(p: Project): string | null {
@@ -91,8 +99,9 @@ const SKIP_WALK = new Set(['.git', 'node_modules', 'bower_components', '.venv', 
  * whole home directory into the snapshot. On other systems git stores
  * symlinks as links and never follows them.
  */
-export function linkedDirs(p: Project, platform: NodeJS.Platform = process.platform): string[] {
+export function linkedDirs(p: Project, platform: NodeJS.Platform = process.platform, limit = 100_000): string[] {
   if (platform !== 'win32') return [];
+  const own = storeInProject(p);
   const found = new Set<string>();
   const isLink = (rel: string) => {
     try {
@@ -112,8 +121,10 @@ export function linkedDirs(p: Project, platform: NodeJS.Platform = process.platf
     }
   }
   for (const d of dirs) if (isLink(d)) found.add(d);
+  // a snapshotted file that has since been replaced by a link to a folder
+  for (const f of git(p.repo, ['diff-files', '--name-only', '-z', '--diff-filter=DT']).split('\0')) if (f && isLink(f)) found.add(f);
   // new folders: walk them ourselves rather than let git walk through a link
-  const budget = { left: 100_000 };
+  const budget = { left: limit };
   // Project .gitignore rules can re-include default dependency folders, so
   // those are skipped only when git agrees they're ignored. Asked in batches:
   // one git call per round instead of one per folder.
@@ -131,16 +142,16 @@ export function linkedDirs(p: Project, platform: NodeJS.Platform = process.platf
       throw new SnapshotSkipped(`linked-folder safety scan could not read ${rel}: ${(e as NodeJS.ErrnoException).code ?? 'filesystem error'}`);
     }
     for (const e of entries) {
-      if (--budget.left < 0) throw new SnapshotSkipped('linked-folder safety scan exceeded 100000 entries; snapshots paused rather than risk copying files outside the project');
+      if (--budget.left < 0) throw new ScanTooLarge(`linked-folder safety scan exceeded ${limit} entries; snapshots paused rather than risk copying files outside the project`);
       const child = `${rel}/${e.name}`;
       if (e.isSymbolicLink()) found.add(child);
-      else if (e.isDirectory() && e.name !== '.git') {
+      else if (e.isDirectory() && e.name !== '.git' && child !== own) {
         if (SKIP_WALK.has(e.name)) deferred.push(child);
         else walk(child);
       }
     }
   };
-  const untracked = git(p.repo, ['ls-files', '-z', '-o', '--directory', '--exclude-standard', '--', '.', ...[...found].map(exclude), ...userExcludes(p)], { magic: true });
+  const untracked = git(p.repo, ['ls-files', '-z', '-o', '--directory', '--exclude-standard', '--', '.', ...[...found, ...(own ? [own] : [])].map(exclude), ...userExcludes(p)], { magic: true });
   for (const e of untracked.split('\0')) if (e.endsWith('/')) walk(e.slice(0, -1));
   while (deferred.length) {
     const batch = deferred;
@@ -201,6 +212,8 @@ function addSmallIgnored(p: Project, links: string[]): void {
 export interface Snap {
   sha: string;
   created: boolean; // false when nothing changed since the last snapshot
+  /** git couldn't copy some files (unreadable, locked); they keep their older copy */
+  incomplete?: string;
 }
 
 // A huge or ever-growing tree (by accident or on purpose) must not stall the
@@ -209,6 +222,9 @@ export interface Snap {
 const PAUSE_MS = 60 * 60 * 1000;
 
 export class SnapshotSkipped extends Error {}
+
+/** The linked-folder scan met more entries than it may look at in one go. */
+class ScanTooLarge extends SnapshotSkipped {}
 
 // The first snapshot of a project reads every file in it, which takes minutes
 // on a big one (on Windows a virus scanner looks at each file as git reads
@@ -261,13 +277,13 @@ export function needsBaseline(p: Project): boolean {
 }
 
 /** Stage what isn't staged yet, a chunk at a time, until done (true) or the deadline. */
-function stageRemaining(p: Project, skip: string[], deadline: number, chunk: number): boolean {
+function stageRemaining(p: Project, skip: string[], deadline: number, chunk: number, onFail: (e: { stderr: string }) => void): boolean {
   const out = git(p.repo, ['ls-files', '-z', '-o', '--exclude-standard', '--', '.', ...skip], { magic: true });
   const files = out.split('\0').filter(Boolean);
   for (let i = 0; i < files.length; i += chunk) {
     if (Date.now() >= deadline) return false;
     try {
-      git(p.repo, ['add', '--ignore-errors', '--pathspec-from-file=-', '--pathspec-file-nul'], { input: files.slice(i, i + chunk).join('\0'), allowFail: true, timeoutMs: p.config.snapshotTimeoutSec * 1000 });
+      git(p.repo, ['add', '--ignore-errors', '--pathspec-from-file=-', '--pathspec-file-nul'], { input: files.slice(i, i + chunk).join('\0'), allowFail: true, onFail, timeoutMs: p.config.snapshotTimeoutSec * 1000 });
     } catch (e) {
       if (e instanceof GitError && e.timedOut) return false;
       throw e;
@@ -282,8 +298,21 @@ function stageRemaining(p: Project, skip: string[], deadline: number, chunk: num
  */
 export function takeBaseline(p: Project, message: string): Snap | null {
   ensureRepo(p);
-  if (baselineRunning(p)) return null;
-  fs.writeFileSync(baselineFile(p), JSON.stringify({ pid: process.pid, at: Date.now() }));
+  // claimed with an exclusive create, so two workers never start on one project
+  const claim = () => {
+    try {
+      fs.writeFileSync(baselineFile(p), JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: 'wx' });
+      return true;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      return false;
+    }
+  };
+  if (!claim()) {
+    if (baselineRunning(p)) return null;
+    fs.rmSync(baselineFile(p), { force: true }); // left by a worker that died
+    if (!claim()) return null;
+  }
   try {
     const until = Date.now() + BASELINE_MAX_MS;
     while (Date.now() < until) {
@@ -328,22 +357,33 @@ function snapshotUnlocked(p: Project, message: string, opts: SnapshotOptions = {
   // pathspec excludes, not ignore files: a repo's .gitignore can't override them
   let links: string[];
   try {
-    links = linkedDirs(p);
+    // a hook scans a bounded number of new entries; the background worker
+    // taking a big project's first snapshot gets room for the whole tree
+    links = linkedDirs(p, process.platform, opts.background ? 5_000_000 : 100_000);
   } catch (e) {
+    if (e instanceof ScanTooLarge && first && !opts.background) throw new BaselinePending('the first snapshot of this large project goes on in the background');
     if (e instanceof SnapshotSkipped) fs.writeFileSync(pausedFile(p), JSON.stringify({ at: Date.now(), reason: e.message }));
     throw e;
   }
+  // Zerostel's own store, if it sits inside the project, is never part of a snapshot
+  const own = storeInProject(p);
+  if (own) links.push(own);
   if (links.length) git(p.repo, ['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...links]);
   // a pattern added to config.json later also drops what earlier snapshots already held
   if (p.config.exclude.length) git(p.repo, ['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...p.config.exclude.map((g) => `:(glob)${g}`)], { magic: true });
+  // with --ignore-errors git still copies what it can; remember what it couldn't
+  let incomplete: string | undefined;
+  const onFail = (e: { stderr: string }) => {
+    incomplete ??= e.stderr.split('\n').find((l) => /^(error|fatal):/.test(l))?.trim() ?? 'git add failed';
+  };
   try {
     const large = largeNewFiles(p, links);
     if (large.length) noteSkipped(p, large);
     const skip = [...[...links, ...large].map(exclude), ...userExcludes(p)];
-    if (first && !stageRemaining(p, skip, Date.now() + (opts.firstBudgetMs ?? FIRST_SNAPSHOT_MS), opts.chunk ?? CHUNK)) {
+    if (first && !stageRemaining(p, skip, Date.now() + (opts.firstBudgetMs ?? FIRST_SNAPSHOT_MS), opts.chunk ?? CHUNK, onFail)) {
       throw new BaselinePending('the first snapshot of this project is still being taken');
     }
-    git(p.repo, ['add', '-A', '--ignore-errors', '--', '.', ...skip], { allowFail: true, magic: true, timeoutMs: p.config.snapshotTimeoutSec * 1000 });
+    git(p.repo, ['add', '-A', '--ignore-errors', '--', '.', ...skip], { allowFail: true, onFail, magic: true, timeoutMs: p.config.snapshotTimeoutSec * 1000 });
   } catch (e) {
     if (!(e instanceof GitError && e.timedOut)) throw e;
     const reason = `snapshotting took longer than ${p.config.snapshotTimeoutSec}s; the project may be too large (add big folders to .gitignore)`;
@@ -356,16 +396,19 @@ function snapshotUnlocked(p: Project, message: string, opts: SnapshotOptions = {
   const parent = head(p);
   if (parent) {
     const parentTree = git(p.repo, ['rev-parse', `${parent}^{tree}`]).trim();
-    if (parentTree === tree) return { sha: parent, created: false };
+    if (parentTree === tree) return { sha: parent, created: false, incomplete };
   }
   const args = ['commit-tree', tree, '-m', message || 'snapshot'];
   if (parent) args.push('-p', parent);
   const sha = git(p.repo, args).trim();
   git(p.repo, ['update-ref', 'HEAD', sha]);
-  return { sha, created: true };
+  return { sha, created: true, incomplete };
 }
 
 export function snapshot(p: Project, message: string, opts: SnapshotOptions = {}): Snap {
+  // Hooks queue for the lock even while a worker takes the first snapshot: on
+  // a small project it finishes while they wait, and the step about to run
+  // (an rm -rf, say) is then snapshotted before it, not skipped.
   return withLock(lockFile(p), () => snapshotUnlocked(p, message, opts));
 }
 
@@ -498,6 +541,13 @@ function removeEmptyParents(root: string, rel: string): void {
   }
 }
 
+/** Files whose content on disk differs from the copy staged in the shadow index. */
+function changedOnDisk(p: Project): Set<string> {
+  // re-read files whose timestamps changed, so only real content changes count
+  git(p.repo, ['update-index', '-q', '--refresh'], { allowFail: true });
+  return new Set(git(p.repo, ['diff-files', '--name-only', '-z']).split('\0').filter(Boolean));
+}
+
 export function trackedPaths(p: Project, rev: string): Set<string> {
   return new Set(git(p.repo, ['ls-tree', '-r', '-z', '--name-only', assertRev(rev)]).split('\0').filter(Boolean));
 }
@@ -510,12 +560,38 @@ export function restore(p: Project, target: string, opts: { only?: string[]; dry
   assertRev(target);
   return withLock(lockFile(p), () => {
     const current = snapshotUnlocked(p, `before restore to ${target.slice(0, 10)}`).sha;
+    const own = storeInProject(p);
     let diff = changes(p, current, target);
+    // snapshots taken before the store was left out may hold it; never write into it
+    if (own) diff = diff.filter((c) => !underAny(c.path, [own]));
     if (opts.only?.length) diff = diff.filter((c) => underAny(c.path, opts.only!));
     const res: RestoreResult = { from: current, to: target, created: [], modified: [], deleted: [], failed: [], dryRun: !!opts.dryRun };
+    const root = path.resolve(p.root);
+    const skip = (rel: string, error: string) => res.failed.push({ path: rel, error });
+    // What the snapshot just taken really holds a copy of: in it, and the
+    // same on disk. git can fail on single files (unreadable, locked by
+    // another program, a full disk) and keep an older copy; nothing that
+    // isn't backed up exactly is ever deleted or overwritten.
+    const unsaved = changedOnDisk(p);
+    const kept = new Set([...trackedPaths(p, current)].filter((x) => !unsaved.has(x)));
     for (const c of diff) {
       if (!validRel(c.path)) {
-        res.failed.push({ path: c.path, error: 'unsafe path, skipped' });
+        skip(c.path, 'unsafe path, skipped');
+        continue;
+      }
+      let st: fs.Stats | null = null;
+      try {
+        st = fs.lstatSync(path.join(root, c.path));
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+          skip(c.path, `couldn't check what's there now (${code}); left alone`);
+          continue;
+        }
+        // nothing there to lose
+      }
+      if (st && !st.isDirectory() && !kept.has(c.path)) {
+        skip(c.path, unsaved.has(c.path) ? "changed since Zerostel could last copy it (locked or unreadable?); left alone" : "Zerostel has no copy of what's there now (excluded, too large or ignored); left alone");
         continue;
       }
       if (c.status === 'A') res.created.push(c.path);
@@ -523,10 +599,6 @@ export function restore(p: Project, target: string, opts: { only?: string[]; dry
       else res.modified.push(c.path);
     }
     if (opts.dryRun) return res;
-
-    const kept = trackedPaths(p, current);
-    const root = path.resolve(p.root);
-    const skip = (rel: string, error: string) => res.failed.push({ path: rel, error });
 
     for (const rel of res.deleted) {
       if (blockingParent(root, rel)) {

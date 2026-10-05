@@ -78,10 +78,23 @@ export function redact(text: string): string {
   return out;
 }
 
-const PLACEHOLDER = /^(?:<.*>|\$\{?[A-Z_][A-Z0-9_]*\}?|\{\{.*\}\}|%[A-Z_]+%)$|x{6,}|your[_-]?|example|placeholder|changeme|dummy|redacted|\.\.\.|…/i;
+// a whole value that stands for a secret rather than being one
+const PLACEHOLDER = /^(?:<.*>|\$\{?[A-Z_][A-Z0-9_]*\}?|\{\{.*\}\}|%[A-Z_]+%|\.\.\.)$/i;
+const FILLER = /your|my|example|sample|placeholder|changeme|change|dummy|redacted|fake|test|api|key|token|secret|here|value|insert|x{3,}/gi;
 
+/**
+ * Example values in docs and configs (`your-api-key-here`, `sk-xxxxxxxxxxxx`,
+ * `${API_KEY}`, a truncated `sk-ant-a…`) aren't worth masking. A real value
+ * that merely contains one of those words is: only values made of them count.
+ */
 export function isPlaceholder(value: string): boolean {
-  return PLACEHOLDER.test(value);
+  if (PLACEHOLDER.test(value) || value.includes('…') || value.endsWith('...')) return true;
+  const alnum = value.replace(/[^A-Za-z0-9]/g, '');
+  // mostly x's: sk-xxxxxxxxxxxxxxxx
+  if (/x{6,}/i.test(value) && (value.match(/x/gi)?.length ?? 0) * 2 >= alnum.length) return true;
+  // nothing but filler words: your-api-key-here, example_token, changeme
+  if (/your|example|sample|placeholder|changeme|dummy|redacted|fake/i.test(value)) return value.replace(FILLER, '').replace(/[^A-Za-z0-9]/g, '').length <= 3;
+  return false;
 }
 
 const SECRET_ENV_NAME = /(?:^|_)(?:API_?KEY|SECRET|TOKEN|PASSWORD|PASSWD|PAT|ACCESS_KEY|PRIVATE_KEY|CREDENTIALS?|AUTH)(?:_|$)/i;

@@ -23,7 +23,7 @@ import { append, findSession, shortId, lastEventByAgent, listSessions, loadSessi
 import { coverage, coverageNote, diffText, repoSize, snapshot, snapshotsPaused, takeBaseline } from './store/shadow.js';
 import { gitVersion } from './util/git.js';
 import { defaultCtx, displayPath, ensurePrivateDir, tilde, type Ctx } from './util/paths.js';
-import { ago, c, err, fmtBytes, fmtClock, fmtDate, fmtDuration, out, selfCommand } from './util/term.js';
+import { ago, c, err, fmtBytes, fmtClock, fmtDate, fmtDuration, oneLine, out, selfCommand } from './util/term.js';
 import { childEnv, findExecutable, neutralCwd } from './util/exec.js';
 import { writeFileAtomic } from './util/files.js';
 import { STANDALONE, VERSION } from './version.js';
@@ -123,7 +123,7 @@ async function confirm(question: string, yes: boolean): Promise<boolean> {
 function listFiles(label: string, files: string[], color: (s: string) => string): void {
   if (!files.length) return;
   out(`  ${color(label.padEnd(10))} ${files.length} file${files.length > 1 ? 's' : ''}`);
-  for (const f of files.slice(0, 12)) out(c.dim(`              ${f}`));
+  for (const f of files.slice(0, 12)) out(c.dim(`              ${oneLine(f)}`));
   if (files.length > 12) out(c.dim(`              … ${files.length - 12} more`));
 }
 
@@ -135,10 +135,11 @@ function printPlan(r: Restored): void {
   listFiles('restore', [...r.modified, ...(r.home?.restored ?? [])], c.yellow);
   listFiles('bring back', r.created, c.green);
   listFiles('remove', r.deleted, c.red);
-  if (r.home?.kept.length) out(c.dim(`  left as they are (they didn't exist then): ${r.home.kept.join(', ')}`));
+  if (r.home?.kept.length) out(c.dim(`  left as they are (they didn't exist then): ${r.home.kept.map(oneLine).join(', ')}`));
+  for (const f of [...r.failed, ...(r.home?.failed ?? [])]) out(c.yellow(`  ! ${oneLine(f.path)}: ${f.error}`));
   if (r.env?.length) out(`  ${c.yellow('environment'.padEnd(10))} ${r.env.join(', ')} ${c.dim('(Windows user variables; new terminals see the change)')}`);
   const auto = [...r.modified, ...r.created].filter((f) => AUTO_RUN.test(f));
-  if (auto.length) out(c.yellow(`  ! ${auto.join(', ')} can make agents or git run commands; check ${auto.length > 1 ? 'them' : 'it'} after rewinding`));
+  if (auto.length) out(c.yellow(`  ! ${auto.map(oneLine).join(', ')} can make agents or git run commands; check ${auto.length > 1 ? 'them' : 'it'} after rewinding`));
 }
 
 // Global packages aren't files Zerostel can put back; say what changed and how to undo it.
@@ -175,14 +176,18 @@ function scopeNote(p: Project, s: Session, t: Target): void {
 
 async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flags): Promise<void> {
   needGit();
-  const only = flags.only?.map((o) => displayPath(o, p.root, p.root));
+  // `--only .` (or the project root) means the whole project, not nothing
+  if (flags.only?.some((o) => !o.trim())) fail('--only needs a path');
+  const picked = flags.only?.map((o) => (path.relative(p.root, path.resolve(p.root, o)) === '' ? '' : displayPath(o, p.root, p.root).replace(/\/+$/, '')));
+  const only = picked?.length && picked.every(Boolean) ? picked : undefined;
   const plan = applyRestore(p, s.ref, t, { only, dryRun: true, ctx });
   const total = plan.created.length + plan.modified.length + plan.deleted.length + (plan.home?.restored.length ?? 0) + (plan.env?.length ?? 0);
   packageNote(plan);
   const what = t.step ? `${t.step.type === 'prompt' ? '❯ ' : ''}${t.step.summary}` : '';
   out(`${c.bold(t.label)}${what ? c.dim('  ' + what) : ''}`);
   if (!total) {
-    out(c.dim('  The project already matches that point. Nothing to do.'));
+    printPlan(plan);
+    out(c.dim(plan.failed.length ? '  Nothing else differs, so nothing to do.' : '  The project already matches that point. Nothing to do.'));
     return;
   }
   printPlan(plan);
@@ -196,7 +201,7 @@ async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flag
     return;
   }
   const res = applyRestore(p, s.ref, t, { only, ctx });
-  for (const f of res.failed) err(c.yellow(`  ! ${f.path}: ${f.error}`));
+  for (const f of res.failed) err(c.yellow(`  ! ${oneLine(f.path)}: ${f.error}`));
   out(res.failed.length ? c.yellow(`! Done, but ${res.failed.length} file${res.failed.length > 1 ? 's were' : ' was'} not restored (see above).`) : c.green('✓ Done.'));
   const z = selfCommand();
   out(c.dim(`  Changed your mind? ${c.bold(`${z} undo`)} puts it back (running undo again undoes this restore, it doesn't go further back).`));
@@ -390,7 +395,7 @@ function status(ctx: Ctx): void {
 
 function showStep(s: Session, n: number): void {
   const st = s.steps.find((x) => x.n === n) ?? fail(`step #${n} not found`);
-  out(`${c.bold(`#${st.n}`)}  ${st.summary}`);
+  out(`${c.bold(`#${st.n}`)}  ${oneLine(st.summary)}`);
   const ms = stepDuration(st);
   const dur = ms === undefined ? '' : `  ${fmtDuration(ms)}`;
   out(c.dim(`${st.type}${st.tool ? ' · ' + st.tool : ''} · ${fmtDate(st.ts)}:${fmtClock(st.ts).slice(6)}${dur}${st.ok === false ? ' · failed' : ''}`));
@@ -402,7 +407,7 @@ function showStep(s: Session, n: number): void {
     out('');
     for (const f of st.files) {
       const col = f.status === 'A' ? c.green : f.status === 'D' ? c.red : c.yellow;
-      out(`  ${col(f.status)} ${f.path}  ${f.binary ? c.dim('binary') : c.green('+' + f.added) + ' ' + c.red('−' + f.deleted)}`);
+      out(`  ${col(f.status)} ${oneLine(f.path)}  ${f.binary ? c.dim('binary') : c.green('+' + f.added) + ' ' + c.red('−' + f.deleted)}`);
     }
     out(c.dim(`\n  zerostel diff ${st.n}    zerostel rewind ${st.n}`));
   }
@@ -440,16 +445,32 @@ function pickAgents(ctx: Ctx, flag: string | undefined, uninstall: boolean): Ada
 
 function install(ctx: Ctx, flags: Flags, uninstall: boolean): void {
   const agents = pickAgents(ctx, flags.agent, uninstall);
+  // one agent's config Zerostel can't read or write doesn't stop the others
+  const failed: string[] = [];
+  const each = <T,>(a: { name: string }, fn: () => T): T | null => {
+    try {
+      return fn();
+    } catch (e) {
+      err(c.yellow(`! ${a.name}: ${(e as Error).message}`));
+      failed.push(a.name);
+      return null;
+    }
+  };
   if (uninstall) {
     for (const a of agents) {
-      const plan = planUninstall(ctx, a);
-      if (plan.before === plan.after) continue;
+      const plan = each(a, () => planUninstall(ctx, a));
+      if (!plan || plan.before === plan.after) continue;
       if (flags['dry-run']) {
         out(c.dim(`Would write ${plan.file}:\n`) + plan.after);
         continue;
       }
-      const backup = applyPlan(plan);
+      const backup = each(a, () => applyPlan(plan));
+      if (backup === null && failed.includes(a.name)) continue;
       out(c.green(`✓ Removed Zerostel hooks for ${plan.name}`) + c.dim(`  ${plan.file}${backup ? `  (backup: ${path.basename(backup)})` : ''}`));
+    }
+    if (failed.length) {
+      err(c.yellow(`! Hooks may still be installed for ${failed.join(', ')}: fix the file named above and run ${c.bold('zerostel uninstall')} again.`));
+      process.exitCode = 1;
     }
     out(c.dim('Recorded sessions and snapshots stay in ' + tilde(ctx.dataDir, ctx.home) + '. Delete that folder to remove them.'));
     return;
@@ -457,18 +478,27 @@ function install(ctx: Ctx, flags: Flags, uninstall: boolean): void {
   needGit();
   // the copy goes in first: on Windows a hook may name it by its 8.3 short name, which only an existing file has
   if (!flags['dry-run']) installBin(ctx);
-  const plans = agents.map((a) => planInstall(ctx, a));
+  // hooks run this exact Node; one in a per-shell or temporary folder disappears later
+  if (ctx.platform === 'win32' && !STANDALONE && /fnm_multishells|[\\/]temp[\\/]/i.test(process.execPath)) {
+    err(c.yellow(`! Hooks will run ${process.execPath}, which looks temporary. If it goes away, recording stops (zerostel doctor shows it); install again from a Node that stays put.`));
+  }
+  const plans = agents.flatMap((a) => each(a, () => planInstall(ctx, a)) ?? []);
   for (const p of plans) for (const w of p.warnings) err(c.yellow('! ' + w));
   if (flags['dry-run']) {
     for (const p of plans) out(c.dim(`Would write ${p.file}:\n`) + p.after);
     return;
   }
   for (const p of plans) {
-    const backup = applyPlan(p);
+    const backup = each(p, () => applyPlan(p));
+    if (backup === null && failed.includes(p.name)) continue;
     out(c.green(`✓ ${p.name} sessions will be recorded`) + c.dim(`  ${p.file}${backup ? `  (backup: ${path.basename(backup)})` : ''}`));
   }
+  if (failed.length) {
+    err(c.yellow(`! Not set up for ${failed.join(', ')} (see above); the others are.`));
+    process.exitCode = 1;
+  }
   out('');
-  for (const a of agents) if (a.afterInstall) out(`  ${a.afterInstall}`);
+  for (const a of agents) if (a.afterInstall && !failed.includes(a.name)) out(`  ${a.afterInstall}`);
   out(`  Then run ${c.bold('zerostel log')} inside your project.`);
 }
 
@@ -595,6 +625,7 @@ export async function main(argv: string[]): Promise<void> {
       append(ref, { e: 'snapshot', ts: now(), id: newId(), snap: snap.sha, message: flags.message ?? 'Manual snapshot' });
       const n = loadSession(ref).steps.filter((x) => x.n).length;
       out(c.green(`✓ Saved as step #${n}`) + c.dim(snap.created ? '' : ' (no changes since the last snapshot)') + c.dim(`  · go back later with zerostel rewind ${n}`));
+      if (snap.incomplete) err(c.yellow(`! Some files couldn't be copied and keep an older copy (${snap.incomplete}); a rewind leaves them alone.`));
       return;
     }
     case 'run': {

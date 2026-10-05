@@ -62,6 +62,16 @@ export function ago(iso: string): string {
   return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
+/**
+ * A value that must stay on its own line, such as a file name or a step
+ * summary. File names can contain line breaks on Linux and macOS; printed
+ * as they are, one could draw a fake step under the real ones. They're shown
+ * escaped instead.
+ */
+export function oneLine(s: string): string {
+  return s.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\t/g, '\\t').replace(/[\u2028\u2029\u0085]/g, ' ');
+}
+
 /** The command to suggest in hints: `npx zerostel` when npx started this process, so the hint works as typed. */
 export function selfCommand(): string {
   return process.env.npm_command === 'exec' ? 'npx zerostel' : 'zerostel';

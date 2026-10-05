@@ -6,11 +6,12 @@ name: Release
 # Zerostel ends up inside every user's agent hooks, so a hijacked release is
 # the worst thing that can happen to it. The build job runs the dev
 # dependencies (tests, bundler) but holds no secrets. The publish job runs no
-# project code, only `npm publish` on the built tarball, and holds no npm token
-# either: npm trusted publishing gives it a short-lived credential for this
-# repository, this workflow and the `npm` environment only. The `npm`
-# environment requires a reviewer (repo Settings → Environments). Actions are
-# pinned to commit SHAs.
+# project code and holds no npm token either: npm trusted publishing gives it a
+# short-lived credential for this repository, this workflow and the `npm`
+# environment only, and that credential can only stage the built tarball. The
+# release goes live when a maintainer approves it on npm with two-factor
+# authentication. The `npm` environment also requires a reviewer (repo
+# Settings → Environments). Actions are pinned to commit SHAs.
 
 on:
   push:
@@ -60,14 +61,17 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - name: npm is new enough for trusted publishing (11.5.1)
-        run: test "$(printf '11.5.1\n%s\n' "$(npm --version)" | sort -V | head -n1)" = 11.5.1
+      - name: npm is new enough for staged publishing (11.15.0)
+        run: test "$(printf '11.15.0\n%s\n' "$(npm --version)" | sort -V | head -n1)" = 11.15.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tarball
-      - run: npm publish zerostel-*.tgz --provenance --access public --ignore-scripts
+      # goes live once a maintainer approves it on npmjs.com (Staged Packages) with 2FA
+      - run: npm stage publish zerostel-*.tgz --provenance --access public --ignore-scripts
 
   manifests:
+    # From the staged tarball: npm serves these same bytes once the release is
+    # approved. No secrets here.
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -78,10 +82,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tarball
       - name: Homebrew formula and Scoop manifest
-        run: |
-          sleep 30
-          node scripts/release-manifests.mjs "${GITHUB_REF_NAME#v}"
+        run: node scripts/release-manifests.mjs "${GITHUB_REF_NAME#v}" "zerostel-${GITHUB_REF_NAME#v}.tgz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: package-manifests

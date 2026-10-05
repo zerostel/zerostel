@@ -32,8 +32,8 @@
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zerostel","url":"https://zerostel.com/","description":"A flight recorder and time machine for AI coding agents: it records every step, rewinds the project to any of them, enforces your own guardrails and keeps a log you can verify.","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","license":"https://www.apache.org/licenses/LICENSE-2.0","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/zerostel/zerostel","https://www.npmjs.com/package/zerostel"]}
 </script>
 <meta name="theme-color" content="#19242d">
-<link rel="stylesheet" href="/assets/site.css">
-<script src="/assets/site.js" defer></script>
+<link rel="stylesheet" href="/assets/site.css?v=a10a8a7e37">
+<script src="/assets/site.js?v=d48fee876f" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -225,7 +225,7 @@
     <h2 id="how-h">Agents move fast. So do their mistakes.</h2>
     <p class="sub">A deleted folder, a <code>sed -i</code> across the repo, a migration that ran twice. Some agents' checkpoints don't see shell commands at all, and every agent has its own idea of undo. Zerostel gives you one record and one way back, whichever agent did it.</p>
     <figure class="watch">
-      <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="1920" height="1158">
+      <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="960" height="579">
         <source src="/assets/demo-undo.mp4" type="video/mp4">
       </video>
       <figcaption>25 seconds, no sound: an agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel undo</code> brings it back.</figcaption>

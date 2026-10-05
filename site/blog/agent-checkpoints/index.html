@@ -29,8 +29,8 @@
 {"@context":"https://schema.org","@type":"BlogPosting","headline":"What your coding agent's checkpoints can't bring back","description":"Every agent's undo works differently, and a few have already deleted real work. What each one restores, and what to do about it.","datePublished":"2026-10-05","dateModified":"2026-10-05","inLanguage":"en","mainEntityOfPage":"https://zerostel.com/blog/agent-checkpoints/","image":"https://zerostel.com/assets/demo-undo.jpg","author":{"@type":"Organization","name":"Zerostel","url":"https://zerostel.com/"},"publisher":{"@type":"Organization","name":"Zerostel","url":"https://zerostel.com/","logo":{"@type":"ImageObject","url":"https://zerostel.com/assets/icon-256.png"}}}
 </script>
 <meta name="theme-color" content="#19242d">
-<link rel="stylesheet" href="/assets/site.css">
-<script src="/assets/site.js" defer></script>
+<link rel="stylesheet" href="/assets/site.css?v=a10a8a7e37">
+<script src="/assets/site.js?v=d48fee876f" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -104,7 +104,7 @@
   <h2 id="zerostel">Why I built Zerostel</h2>
   <p>I use more than one agent, and each one gave me a different answer to "what changed, and can I get it back?" So I built <a href="/">Zerostel</a>: a flight recorder and time machine that sits outside the agents.</p>
   <figure>
-    <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="1920" height="1158">
+    <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="960" height="579">
       <source src="/assets/demo-undo.mp4" type="video/mp4">
     </video>
     <figcaption>An agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel undo</code> brings it back. 25 seconds, no sound.</figcaption>

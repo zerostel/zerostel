@@ -6,6 +6,8 @@ The project website: static files, no build step, no third-party scripts, fonts 
 - `_headers` sets the security headers on Cloudflare Pages. The pages also carry their CSP in a `<meta>` tag. Inline styles and scripts are not allowed, so keep everything in the asset files (site.js only sets CSS custom properties through the CSSOM, which the CSP allows). The one `<script type="application/ld+json">` in each page is structured data for search engines; browsers never run it, so the CSP doesn't apply to it.
 - `.well-known/security.txt` points to security@zerostel.com and GitHub's private reporting.
 
+After changing `assets/site.css` or `assets/site.js`, run `node scripts/site-assets.mjs`: it stamps the links in every page with a hash of the file, so browsers never mix a new page with a stylesheet they cached earlier (a test checks this).
+
 Preview: serve the folder with any static server, for example `npx serve site`, and open it in a browser.
 
 Deploying is described in `docs/releasing.md`.

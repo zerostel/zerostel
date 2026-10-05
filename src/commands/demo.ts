@@ -5,7 +5,7 @@ import { handleHook } from '../agents/hooks.js';
 import { openProject } from '../store/project.js';
 import { findSession, loadSession, regressions } from '../store/session.js';
 import type { Ctx } from '../util/paths.js';
-import { c, out } from '../util/term.js';
+import { c, out, selfCommand } from '../util/term.js';
 import { renderTimeline } from '../view/timeline.js';
 
 // `zerostel demo`: try Zerostel in thirty seconds without an agent and
@@ -64,8 +64,7 @@ export function runDemo(ctx: Ctx): string {
   const ref = findSession(p);
   if (!ref) throw new Error(`the example session wasn't recorded in ${project}; see zerostel doctor`);
   const s = loadSession(ref);
-  // run through npx? then the next commands need it too
-  const z = process.env.npm_command === 'exec' ? 'npx zerostel' : 'zerostel';
+  const z = selfCommand();
   out(c.green('✓ ') + `Made an example project and played one agent turn in it:`);
   out(c.dim(`  ${project}`));
   out(c.dim('  The "agent" ran the tests, edited src/app.ts, deleted src/legacy with rm -rf, and broke the tests.\n'));

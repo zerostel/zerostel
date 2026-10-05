@@ -62,6 +62,11 @@ export function ago(iso: string): string {
   return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
+/** The command to suggest in hints: `npx zerostel` when npx started this process, so the hint works as typed. */
+export function selfCommand(): string {
+  return process.env.npm_command === 'exec' ? 'npx zerostel' : 'zerostel';
+}
+
 export function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, Math.max(0, max - 1)) + '…' : s;
 }

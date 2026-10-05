@@ -6,6 +6,7 @@ import { handleHook } from '../src/agents/hooks.js';
 import { applyRestore, stepTarget, undoTarget } from '../src/commands/rewind.js';
 import { applyPlan, defaultAgents, hookEntry, hookStatus, planInstall, planUninstall } from '../src/install.js';
 import { renderReport } from '../src/report/html.js';
+import { renderTimeline } from '../src/view/timeline.js';
 import { openProject } from '../src/store/project.js';
 import { findSession, listSessions, loadSession } from '../src/store/session.js';
 import { sandbox, type Sandbox } from './helpers.js';
@@ -198,5 +199,21 @@ describe('report', () => {
 
     const hidden = renderReport(p, loadSession(findSession(p)!), { prompts: false });
     expect(hidden).not.toContain('reticulate');
+  });
+});
+
+describe('timeline layout', () => {
+  it('keeps a step that deleted files, with its warning mark, inside the terminal width', () => {
+    for (const f of ['auth', 'session', 'tokens', 'keys']) sb.write(`src/legacy/${f}.ts`, 'export const x = 1;\n'.repeat(40));
+    hook({ hook_event_name: 'UserPromptSubmit', prompt: 'remove the old code' });
+    tool('1', 'Bash', { command: 'rm -rf src/legacy' }, () => fs.rmSync(path.join(sb.project, 'src/legacy'), { recursive: true }));
+    const p = openProject(sb.project, sb.ctx);
+    // the warning mark is two columns wide in many terminals
+    const cols = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '').replace(/⚠/g, '⚠ ').length;
+    for (const width of [90, 100, 120, 160]) {
+      const lines = renderTimeline(loadSession(findSession(p)!), { width });
+      expect(lines.some((l) => l.includes('⚠'))).toBe(true);
+      for (const l of lines.filter((x) => x.includes('#'))) expect(cols(l), l).toBeLessThanOrEqual(width);
+    }
   });
 });

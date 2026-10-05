@@ -119,7 +119,9 @@ export function renderTimeline(s: Session, opts: { onlyChanges?: boolean; width?
       lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${c.bold(truncate(st.summary, width - numW - 15))}`);
       continue;
     }
-    const sumW = Math.max(24, width - (numW + 1) - 14 - 7 - 30);
+    // 36 columns for the file changes and the flag after them, so a long
+    // badge plus ⚠ (two columns wide in many terminals) doesn't wrap the line
+    const sumW = Math.max(24, width - (numW + 1) - 14 - 7 - 36);
     const label = st.subagent ? `↳ ${st.summary}` : st.summary;
     const plain = truncate(label, sumW).padEnd(sumW);
     let text = plain;

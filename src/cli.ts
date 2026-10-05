@@ -23,7 +23,7 @@ import { append, findSession, shortId, lastEventByAgent, listSessions, loadSessi
 import { coverage, coverageNote, diffText, repoSize, snapshot, snapshotsPaused, takeBaseline } from './store/shadow.js';
 import { gitVersion } from './util/git.js';
 import { defaultCtx, displayPath, ensurePrivateDir, tilde, type Ctx } from './util/paths.js';
-import { ago, c, err, fmtBytes, fmtClock, fmtDate, fmtDuration, out } from './util/term.js';
+import { ago, c, err, fmtBytes, fmtClock, fmtDate, fmtDuration, out, selfCommand } from './util/term.js';
 import { childEnv, findExecutable, neutralCwd } from './util/exec.js';
 import { writeFileAtomic } from './util/files.js';
 import { STANDALONE, VERSION } from './version.js';
@@ -198,8 +198,9 @@ async function doRewind(ctx: Ctx, p: Project, s: Session, t: Target, flags: Flag
   const res = applyRestore(p, s.ref, t, { only, ctx });
   for (const f of res.failed) err(c.yellow(`  ! ${f.path}: ${f.error}`));
   out(res.failed.length ? c.yellow(`! Done, but ${res.failed.length} file${res.failed.length > 1 ? 's were' : ' was'} not restored (see above).`) : c.green('✓ Done.'));
-  out(c.dim(`  Changed your mind? ${c.bold('zerostel undo')} puts it back (running undo again undoes this restore, it doesn't go further back).`));
-  out(c.dim(`  To go back further: ${c.bold('zerostel log')}, then ${c.bold('zerostel rewind <n> --dry-run')}.`));
+  const z = selfCommand();
+  out(c.dim(`  Changed your mind? ${c.bold(`${z} undo`)} puts it back (running undo again undoes this restore, it doesn't go further back).`));
+  out(c.dim(`  To go back further: ${c.bold(`${z} log`)}, then ${c.bold(`${z} rewind <n> --dry-run`)}.`));
   out(c.dim('  The agent still remembers the old conversation: rewind it there too, or start a new session.'));
 }
 

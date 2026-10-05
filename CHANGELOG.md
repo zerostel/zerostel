@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 (2026-10-05)
+
+- A step that deleted files keeps its warning mark on its own line in `zerostel log`, instead of wrapping it onto the next one.
+- After an undo or a rewind, the suggested commands start with `npx zerostel` when you ran Zerostel through npx, as the demo's already did.
+
 ## 0.1.1 (2026-10-05)
 
 No changes to what Zerostel records or rewinds; this release brings the package page and the release process up to date.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Zerostel · Rewind any AI agent to point zero</title>
 <meta name="description" content="Zero trust for AI coding agents. Record every step Claude Code, Codex or Cursor takes, rewind your project to any of them, enforce your own guardrails.">
@@ -224,6 +224,12 @@
     <span class="ch" aria-hidden="true">CH 02 · What it does</span>
     <h2 id="how-h">Agents move fast. So do their mistakes.</h2>
     <p class="sub">A deleted folder, a <code>sed -i</code> across the repo, a migration that ran twice. Some agents' checkpoints don't see shell commands at all, and every agent has its own idea of undo. Zerostel gives you one record and one way back, whichever agent did it.</p>
+    <figure class="watch">
+      <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="1920" height="1158">
+        <source src="/assets/demo-undo.mp4" type="video/mp4">
+      </video>
+      <figcaption>25 seconds, no sound: an agent turn deletes <code>src/legacy</code> with <code>rm -rf</code> and breaks the tests; <code>npx zerostel undo</code> brings it back.</figcaption>
+    </figure>
     <div class="grid g4">
       <div class="card">
         <div class="icon" aria-hidden="true">●</div>

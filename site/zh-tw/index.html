@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Zerostel · 任何 AI agent 出錯，都能回到零點</title>
 <meta name="description" content="給 AI coding agent 的零信任：記錄 Claude Code、Codex、Cursor 的每一步，專案能倒回任何一步，並套用你自己的防護規則。開源，只在本機執行。">
@@ -224,6 +224,12 @@
     <span class="ch" aria-hidden="true">CH 02 · 功能</span>
     <h2 id="how-h">agent 動作很快，出錯也很快。</h2>
     <p class="sub">一個被刪掉的資料夾、一次對整個 repo 的 <code>sed -i</code>、跑了兩次的資料庫遷移。有些 agent 的 checkpoint 完全看不到 shell 指令，而且每家的復原方式都不一樣。Zerostel 給你一份紀錄、一條回去的路，不管是哪個 agent 做的。</p>
+    <figure class="watch">
+      <video controls muted playsinline preload="none" poster="/assets/demo-undo.jpg" width="1920" height="1158">
+        <source src="/assets/demo-undo.mp4" type="video/mp4">
+      </video>
+      <figcaption>25 秒，沒有聲音：agent 的一個回合用 <code>rm -rf</code> 刪掉 <code>src/legacy</code>、測試失敗；<code>npx zerostel undo</code> 把它救回來。</figcaption>
+    </figure>
     <div class="grid g4">
       <div class="card">
         <div class="icon" aria-hidden="true">●</div>

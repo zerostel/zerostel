@@ -1,4 +1,35 @@
-# Guardrail recipes
+# Guardrails
+
+Rules live in `~/.zerostel/policy.json`. With no file there are no rules. `zerostel policy init` writes a starter set; besides the rules below, it asks before running as administrator (`sudo`), installing or removing software globally (`npm -g`, `pip --user`, `brew`, `winget`…), changing system or user settings (`setx`, `reg`, `crontab`…), writing to system folders, publishing or deploying (`npm publish`, `terraform apply`, `vercel --prod`…) dropping database tables, and switching Zerostel itself off (`zerostel uninstall`, `zerostel prune`, or editing an agent's hook settings). Rules match what a command says, so they slow an agent down rather than wall it in; hooks removed anyway show up in the log. An excerpt:
+
+```jsonc
+{
+  "rules": [
+    { "action": "deny", "paths": ["~/.ssh/**", "~/.aws/**", "~/.gnupg/**", "~/.kube/**", "~/.config/gcloud/**", "~/.zerostel/**"],
+      "reason": "credentials, and Zerostel's own records, are off limits" },
+    { "action": "ask", "paths": ["**/.env", "**/.env.*"], "access": "write", "reason": "changes a .env file" },
+    { "action": "ask", "commands": ["git push --force*", "git push -f*", "git reset --hard*", "git clean -*f*", "* --no-verify*"],
+      "reason": "rewrites or throws away git history" }
+  ]
+}
+```
+
+`zerostel policy init` writes a `$schema` line, so editors such as VS Code complete and check the file as you type (the schema is at `https://zerostel.com/schema/policy.json`; `config.json` has one too).
+
+## How rules match
+
+- `paths` match files a tool names, and paths that appear in shell commands. `~/` is your home folder; other relative globs start at the project root. `**` crosses folders, `*` doesn't.
+- `commands` match each part of a shell command, split at `&&`, `||`, `;`, `|`, `&`, `( )`, `$( )` and backticks, without regard to case. A pattern matches a whole part, and `*` matches anything, spaces included: `curl *-d *` catches `curl -H 'x: y' -d @data.json https://...`.
+- `tools` match tool names: Claude Code's names (`Bash`, `Edit`, `WebFetch`...) for every agent, and `mcp__<server>__<tool>` for MCP tools.
+- One rule fires when any of its lists matches. A `deny` anywhere wins over an `ask`.
+- `"access": "write"` limits a rule to tools that can change files.
+- **`deny`** stops the call before it runs, and the agent is told why. **`ask`** makes Claude Code ask you; agents that can't pause to ask block the call and tell the agent to check with you.
+
+Paths like `$HOME/.ssh`, `%USERPROFILE%\.ssh` or Git Bash's `/c/Users/...` are recognised for what they are.
+
+Rules match what a tool call says, not what it does: a script can reach a file without naming it. They catch mistakes and slow a misled agent down; they are not a sandbox. Blocked and asked-about calls show up in the timeline, the web UI and reports. A broken `policy.json` is reported by `zerostel status` and `doctor` rather than guessed at, and a problem inside Zerostel never blocks a tool.
+
+## Recipes
 
 Ready-made rules for `~/.zerostel/policy.json`. Start from the starter set (`zerostel policy init`), then paste the rules you want into its `"rules"` list. Check what a rule catches before you rely on it:
 
@@ -7,16 +38,7 @@ zerostel policy test "git push origin main"
 zerostel policy test ./migrations/0042_drop_users.sql
 ```
 
-How rules match (the full reference is in the [README](../README.md#guardrails)):
-
-- `paths` match files a tool names, and paths that appear in shell commands. `~/` is your home folder; other relative globs start at the project root. `**` crosses folders, `*` doesn't.
-- `commands` match each part of a shell command, split at `&&`, `||`, `;`, `|`, `&`, `( )`, `$( )` and backticks, without regard to case. A pattern matches a whole part, and `*` matches anything, spaces included: `curl *-d *` catches `curl -H 'x: y' -d @data.json https://...`.
-- `tools` match tool names: Claude Code's names (`Bash`, `Edit`, `WebFetch`...) for every agent, and `mcp__<server>__<tool>` for MCP tools.
-- One rule fires when any of its lists matches. A `deny` anywhere wins over an `ask`.
-
-Rules match what a tool call says, not what it does: a script can reach a file without naming it. They catch mistakes and slow a misled agent down; they are not a sandbox. Everything they stop or ask about shows up in the timeline.
-
-## Keep secrets out of reach
+### Keep secrets out of reach
 
 The starter set already denies `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, gcloud and Zerostel's own folder. Add key files and credentials kept elsewhere:
 
@@ -34,7 +56,7 @@ To keep the agent from even reading `.env` files (the starter set only asks befo
 { "action": "deny", "paths": ["**/.env", "**/.env.*"], "reason": "the agent works from .env.example, not real values" }
 ```
 
-## Ask before anything leaves the machine
+### Ask before anything leaves the machine
 
 A rewind can't take back what was sent. Ask before uploads and posts:
 
@@ -52,7 +74,7 @@ And before the agent fetches web pages, if you'd rather it worked from what's in
 { "action": "ask", "tools": ["WebFetch", "WebSearch"], "reason": "goes to the web" }
 ```
 
-## Protect what's hard to redo
+### Protect what's hard to redo
 
 Database migrations, infrastructure and CI definitions are where a wrong edit costs the most:
 
@@ -75,7 +97,7 @@ Commands that reset or drop a database:
 }
 ```
 
-## Keep the main branch for people
+### Keep the main branch for people
 
 ```json
 {
@@ -85,7 +107,7 @@ Commands that reset or drop a database:
 }
 ```
 
-## Deletions outside the project
+### Deletions outside the project
 
 `rm -rf` inside the project can be rewound. Outside it, it can't. These are the classic wrong-folder deletions; an absolute path inside the project is still fine:
 
@@ -97,7 +119,7 @@ Commands that reset or drop a database:
 }
 ```
 
-## MCP tools
+### MCP tools
 
 MCP tools are named `mcp__<server>__<tool>`. Ask before anything that writes on another service, and block what you never want an agent to do:
 
@@ -109,7 +131,7 @@ MCP tools are named `mcp__<server>__<tool>`. Ask before anything that writes on 
 { "action": "deny", "tools": ["mcp__github__delete_*", "mcp__*__drop_*"], "reason": "not something an agent should do here" }
 ```
 
-## Dependencies
+### Dependencies
 
 New dependencies are where supply-chain trouble comes in. Ask before the agent adds one:
 
@@ -121,7 +143,7 @@ New dependencies are where supply-chain trouble comes in. Ask before the agent a
 }
 ```
 
-## For CI
+### For CI
 
 An agent running unattended in CI has nobody to ask, so `ask` blocks there. A strict file for the [GitHub Action](ci.md) (`policy: .github/zerostel-policy.json`) can be short:
 

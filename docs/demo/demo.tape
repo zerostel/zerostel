@@ -1,58 +1,60 @@
-# Renders docs/assets/demo.gif with VHS (https://github.com/charmbracelet/vhs).
+# The demo (see README.md here): one agent turn deletes src/legacy with rm -rf and breaks
+# the tests, and `zerostel undo` brings it back. It runs the real npm package
+# inside the container, so the paths on screen are /tmp/... and nothing else.
 #
-# Needs vhs, ttyd, ffmpeg, git and Node 20+. Run from the repo root after
-# `npm run build`:
-#
-#   vhs docs/demo/demo.tape
-#
-# The session is an example: scripts/demo-setup.mjs plays one agent turn
-# through the real hook handler in a throwaway project under /tmp.
+#   docker run --rm -v "${PWD}:/vhs" zerostel-vhs demo.tape
 
-Output docs/assets/demo.gif
+Output raw.mp4
+
+Require npx
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
-Set FontSize 18
-Set Width 1280
-Set Height 720
-Set Padding 28
-Set Margin 24
-Set MarginFill "#5B5BD6"
+Set FontSize 32
+Set Width 2720
+Set Height 1640
+Set Padding 48
+Set Margin 72
+Set MarginFill "#c94a22"
 Set WindowBar Colorful
-Set BorderRadius 12
+Set WindowBarSize 80
+Set BorderRadius 24
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 45ms
+Set TypingSpeed 55ms
 
+# off camera: fetch the package once and tell npx not to ask about installing it
 Hide
-Type 'eval "$(node scripts/demo-setup.mjs)" && clear'
+Type "export npm_config_yes=true npm_config_update_notifier=false && npx zerostel --version > /dev/null && rm -rf /tmp/zerostel-demo-* && clear"
 Enter
-Sleep 15s
+Wait@120s
 Show
 
-Type "zerostel log"
-Sleep 400ms
+Sleep 800ms
+Type "npx zerostel demo"
+Sleep 500ms
 Enter
-Sleep 6s
+Wait+Screen@60s /report --open/
+Sleep 8s
 
-Type "ls src"
-Sleep 300ms
+Type "cd /tmp/zerostel-demo-*/shop-api && clear"
 Enter
-Sleep 1.5s
-
-Type "zerostel undo"
-Sleep 400ms
-Enter
-Sleep 3s
-Type "y"
-Enter
-Sleep 2.5s
-
-Type "ls src"
+Sleep 600ms
+Type "ls -R src"
 Sleep 300ms
 Enter
 Sleep 2s
 
-Type "zerostel report --share"
+Type "npx zerostel undo"
+Sleep 300ms
+Enter
+Wait+Screen@30s /\[y\/N\]/
+Sleep 3500ms
+Type "y"
 Sleep 400ms
 Enter
 Sleep 4s
+
+Type "ls -R src"
+Sleep 300ms
+Enter
+Sleep 6s

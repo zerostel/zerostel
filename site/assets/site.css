@@ -383,3 +383,8 @@ footer a { color: var(--muted); }
 .port.soon code { color: var(--term-dim); }
 .plug .soon-tag { flex: none; font: 600 11px/1.6 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; color: var(--term-yellow); border: 1px solid #5a4a26; border-radius: 999px; padding: 3px 9px; text-decoration: none; overflow-wrap: normal; white-space: nowrap; }
 .plug .soon-tag:hover { border-color: var(--term-yellow); }
+
+/* the demo video on the home page */
+.watch { margin: 0 0 36px; }
+.watch video { display: block; width: 100%; height: auto; border-radius: var(--radius); background: var(--term-bg); border: 1px solid #22303b; box-shadow: 0 24px 60px -28px rgba(17, 26, 33, 0.6); }
+.watch figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; }

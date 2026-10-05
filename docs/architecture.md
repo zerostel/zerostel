@@ -2,6 +2,25 @@
 
 Zerostel is a single Node script (bundled to `dist/cli.js`, no runtime dependencies) plus git. Everything it stores lives under `~/.zerostel`.
 
+## In short
+
+```
+ agent ──hook──▶ zerostel ──▶ policy.json      block or ask before the tool runs
+ (before and after  │
+  every tool call)  └──────▶ ~/.zerostel/projects/<name>-<hash>/
+                              ├─ snapshots.git      shadow repo, work tree = your project
+                              └─ sessions/*.jsonl   prompts, commands, files, tokens, time (hash-chained)
+```
+
+- **Hooks.** The agent calls Zerostel before and after each tool call and at the start and end of each turn. Read-only tools are only logged; anything that can change files gets a snapshot before and after.
+- **Shadow git repo.** Snapshots live in a separate repository whose work tree is your project. Your `.git`, branches, index and stash are never touched, and the project doesn't need to be a git repo. Files are stored byte for byte and identical content is stored once.
+- **What's snapshotted.** Everything `.gitignore` doesn't exclude, minus dependency folders like `node_modules`. Small ignored files such as `.env` are still backed up, because an agent deleting them is exactly when you need them back. Files you list under `watch` (outside the project) are kept in a repo of their own.
+- **Safe rewinds.** Before restoring, Zerostel snapshots the current state, so every rewind can be undone. It only removes what that snapshot holds a copy of, never follows a symlink or junction out of the project, and checks the result afterwards.
+- **A log you can check.** Each event line carries an HMAC of the previous line and itself, keyed by `~/.zerostel/audit.key`.
+- **Never in the way.** Hooks print nothing unless a rule fires, always exit 0 and log their own errors. If Zerostel has a problem, the agent carries on.
+
+## What lives where
+
 ```
 ~/.zerostel/
 ├─ bin/zerostel.mjs              copy of the CLI that agent hooks run

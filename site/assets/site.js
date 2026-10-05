@@ -85,7 +85,7 @@ const main = document.querySelector('main');
 
 if (main && !calm && 'IntersectionObserver' in window) {
   // things that roll in, each group staggered within its parent
-  const pick = 'section:not(.hero) :is(.ch, h2, .sub, .agent, .bay-row, .card, .checks li, .table tbody tr, details, .term, .install, .ctas, .why-name, .small), .post > :not(header)';
+  const pick = 'section:not(.hero) :is(.ch, h2, .sub, .agent, .bay-row, .card, .checks li, .table tbody tr, details, .term, .watch, .install, .ctas, .why-name, .small), .post > :not(header)';
   const seen = new Map();
   for (const el of main.querySelectorAll(pick)) {
     const n = seen.get(el.parentElement) ?? 0;

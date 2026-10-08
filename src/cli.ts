@@ -313,15 +313,17 @@ async function hook(agentId: string, ctx: Ctx, event?: string): Promise<void> {
   // a rule's decision goes out the moment it's made, so it reaches the agent
   // even if recording afterwards runs past the agent's hook timeout
   const answer = (r: HookResult) => {
-    if (answered || !r.decision || !adapter?.decide) return;
+    // another agent running this agent's hooks gets its own format
+    const a = r.runner ?? adapter;
+    if (answered || !r.decision || !a?.decide) return;
     answered = true;
-    say(adapter.decide(r.decision));
+    say(a.decide(r.decision));
   };
   try {
     // PowerShell 5.1 can add a byte-order mark of its own in front of one already there
     const raw = (await readStdin()).replace(/^﻿+/, '');
     payload = JSON.parse(raw || '{}') as Record<string, unknown>;
-    if (adapter) result = handleHook(adapter, payload, ctx, event, { onDecision: answer, startBaseline });
+    if (adapter) result = handleHook(adapter, payload, ctx, event, { onDecision: answer, startBaseline, env: process.env });
     if (result.policyProblem) logError(ctx, `hook ${agentId}: ${result.policyProblem}`);
     if (result.problem) logError(ctx, `hook ${agentId}: ${result.problem}`);
   } catch (e) {
@@ -329,7 +331,7 @@ async function hook(agentId: string, ctx: Ctx, event?: string): Promise<void> {
   } finally {
     // a rule's decision replaces the usual empty answer; anything else stays silent
     answer(result);
-    const ack = !answered && adapter ? ackFor(adapter, payload) : undefined;
+    const ack = !answered && adapter ? ackFor(result.runner ?? adapter, payload) : undefined;
     if (ack) say(ack);
   }
   process.exit(0);

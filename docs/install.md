@@ -40,3 +40,12 @@ Every agent is recorded the same way, but they don't all report the same things 
 | `zerostel run` | no | no rules: it sees files, not tool calls | its own exit code | no |
 
 "A command that failed" decides what `zerostel checks` can say about a test or build the agent ran: when the agent doesn't report it, the result shows as "not reported", never as passed. `zerostel check -- <command>` always knows, since it runs the command itself.
+
+## Agents that run Claude Code's hooks
+
+Some agents also run the hooks in Claude Code's settings: Cursor (by default), Copilot CLI (a project's `.claude/settings.json`, such as one a team commits), and Continue CLI and Devin (`~/.claude/settings.json` too). Zerostel tells them apart by what they put in the hook's payload or environment, so their calls aren't recorded as Claude Code's:
+
+- when the agent has Zerostel hooks of its own, those record the call and check the rules, and the Claude Code hook stays out of it;
+- otherwise the call is recorded under the agent's own name, and a rule set to "ask" blocks there, as for Codex.
+
+Crush and OpenHands are told apart the same way, should one of them run Zerostel's Claude Code hook. A Claude Code started from inside another agent stays Claude Code: it names its own session to its hooks.

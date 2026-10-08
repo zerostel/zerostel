@@ -44,7 +44,7 @@ Zerostel is a single Node script (bundled to `dist/cli.js`, no runtime dependenc
 ## Flow of one tool call
 
 1. The agent runs `node ~/.zerostel/bin/zerostel.mjs hook <agent>` with a JSON payload on stdin.
-2. The agent's **adapter** (`src/agents/adapters.ts`) turns the payload into a `HookInput` with one of seven moments: `start`, `prompt`, `pre`, `post`, `post-fail`, `stop`, `end`.
+2. The agent's **adapter** (`src/agents/adapters.ts`) turns the payload into a `HookInput` with one of seven moments: `start`, `prompt`, `pre`, `post`, `post-fail`, `stop`, `end`. Other agents run Claude Code's hooks too, so first its `ranBy()` reads the payload and the environment for who really ran the hook: that agent's own Zerostel hooks, when installed, record the call instead; otherwise its adapter (or, with no adapter of its own, a guest in `GUESTS`) takes over, and the call is recorded and answered as that agent's.
 3. `handleHook` (`src/agents/hooks.ts`) finds the project and takes the session lock. On `pre` it first checks the call against `policy.json` (`src/guard/policy.ts`); a `deny` is recorded and the tool never runs. Otherwise, for tools that can change files, it takes a **snapshot** (`src/store/shadow.ts`) on `pre` and `post`, and snapshots the watched files (`src/store/home.ts`). Any difference between the previous snapshot and the new `pre` snapshot is recorded as an "outside" change.
 4. An event line is appended to the session's `.jsonl` with its chain value (`src/store/audit.ts`). Nothing is printed unless a rule fired (the adapter's `decide()` writes the agent's own format) or the agent requires an acknowledgement (Cursor expects `{}`), and the process exits 0 even on errors.
 

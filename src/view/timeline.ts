@@ -13,6 +13,11 @@ export const AGENT_NAMES: Record<string, string> = {
   copilot: 'Copilot CLI',
   opencode: 'opencode',
   deepseek: 'DeepSeek Harness',
+  // they run Claude Code's hooks
+  continue: 'Continue CLI',
+  devin: 'Devin',
+  crush: 'Crush',
+  openhands: 'OpenHands',
   run: 'zerostel run',
   manual: 'Manual',
 };

@@ -13,7 +13,7 @@ import { BaselinePending, baselineRunning, changes, maintain, needsBaseline, sna
 import { gitVersion } from '../util/git.js';
 import { withLock } from '../util/lock.js';
 import { displayPath, tilde, type Ctx } from '../util/paths.js';
-import { getAdapter, type Adapter, type HookInput } from './adapters.js';
+import { getAdapter, hookRunner, type Adapter, type HookInput } from './adapters.js';
 
 export type { HookInput };
 
@@ -366,7 +366,15 @@ function snap(env: Env, msg: string, skipped?: (why: string) => void): string | 
  * The project is where the agent was started, not wherever it has `cd`-ed
  * to since. Claude Code exports that as CLAUDE_PROJECT_DIR.
  */
-const PROJECT_DIR_ENV: Record<string, string> = { 'claude-code': 'CLAUDE_PROJECT_DIR', cursor: 'CURSOR_PROJECT_DIR', gemini: 'GEMINI_PROJECT_DIR' };
+const PROJECT_DIR_ENV: Record<string, string> = {
+  'claude-code': 'CLAUDE_PROJECT_DIR',
+  cursor: 'CURSOR_PROJECT_DIR',
+  gemini: 'GEMINI_PROJECT_DIR',
+  continue: 'CONTINUE_PROJECT_DIR',
+  devin: 'DEVIN_PROJECT_DIR',
+  crush: 'CRUSH_PROJECT_DIR',
+  openhands: 'OPENHANDS_PROJECT_DIR',
+};
 
 function isDir(p: string): boolean {
   try {
@@ -383,6 +391,8 @@ function projectDir(adapter: Adapter, input: HookInput, ctx: Ctx): string {
 }
 
 export interface HookResult {
+  /** another agent ran this agent's hooks; answer it in its own format */
+  runner?: Adapter;
   /** a policy rule stopped the tool call or wants the agent to ask first */
   decision?: Decision;
   /** policy.json couldn't be used as written; worth logging */
@@ -447,18 +457,27 @@ function watchHooks(env: Env, adapter: Adapter): void {
  * `opts.projectDir` pins the project (the demo uses it), ignoring CLAUDE_PROJECT_DIR and the payload.
  * `opts.onDecision` hears a rule's decision as soon as it's made, before anything is recorded,
  * so the answer reaches the agent even if recording is slow enough to hit its hook timeout.
+ * `opts.env` is the hook's environment, where another agent running these hooks may show itself.
  */
 export function handleHook(
   agentOrId: Adapter | string,
   raw: Record<string, unknown>,
   base: Ctx,
   event?: string,
-  opts: { projectDir?: string; onDecision?: (r: HookResult) => void; startBaseline?: (root: string) => void } = {},
+  opts: { projectDir?: string; onDecision?: (r: HookResult) => void; startBaseline?: (root: string) => void; env?: NodeJS.ProcessEnv } = {},
 ): HookResult {
-  const adapter = typeof agentOrId === 'string' ? getAdapter(agentOrId) : agentOrId;
-  if (!adapter) throw new Error(`unknown agent ${String(agentOrId)}`);
-  const input = adapter.normalize(raw, event);
+  const named = typeof agentOrId === 'string' ? getAdapter(agentOrId) : agentOrId;
+  if (!named) throw new Error(`unknown agent ${String(agentOrId)}`);
   const result: HookResult = {};
+  // another agent running these hooks is recorded as itself, and only once:
+  // when it has Zerostel hooks of its own, those record the call and check the rules
+  const adapter = hookRunner(named, raw, opts.env ?? {}, (a) => {
+    const s = hookStatus(base, a);
+    return s.installed && !s.disabled;
+  });
+  if (!adapter) return result;
+  if (adapter !== named) result.runner = adapter;
+  const input = adapter.normalize(raw, event);
   if (!input) return result;
   const hookInput: HookInput = input;
   const agent = adapter.id;

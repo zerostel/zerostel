@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Security
+
+- On Windows, a tool call naming a path that holds the character U+10FFFF made Node end the hook's process outright: an assertion inside Node (libuv), which no error handling can catch. The guardrails then gave no answer, and the agent went ahead with the call. A file named with that character in a repository did the same to every hook there. Zerostel now refuses such a path, program argument, working folder or environment value with an ordinary error before it reaches Node's file and process functions, and the guardrails ask about a call that names one. The property-based tests added in 0.3.0 found it.
+
+Other
+
+- The PowerShell completion script's hint no longer pipes into `Invoke-Expression`: save the script and load it from `$PROFILE`.
 - SECURITY.md names 0.3.x as the release line that gets security fixes (it still said 0.1.x), and a test keeps it current.
 - The Claude Code plugin has its own repository for Anthropic's plugin directory, [zerostel/claude-plugin](https://github.com/zerostel/claude-plugin): the npm release's files, checked against its provenance (#16).
 

@@ -1,3 +1,5 @@
+// first: on Windows, paths Node would abort on become ordinary errors (src/util/win-paths.ts)
+import './util/win-paths-install.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

@@ -60,8 +60,9 @@ ${FLAGS.filter((f) => f !== '--agent')
   .join('\n')}
 `;
     case 'powershell':
-      return `# zerostel completion for PowerShell: add to $PROFILE
-#   zerostel completion powershell | Out-String | Invoke-Expression
+      return `# zerostel completion for PowerShell: save it, then load it from $PROFILE
+#   zerostel completion powershell > $HOME/zerostel-completion.ps1
+#   and add this line to $PROFILE:  . $HOME/zerostel-completion.ps1
 Register-ArgumentCompleter -Native -CommandName zerostel -ScriptBlock {
   param($word, $ast, $cursor)
   $parts = $ast.CommandElements | ForEach-Object { $_.ToString() }

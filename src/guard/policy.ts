@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Ctx } from '../util/paths.js';
+import { UNPASSABLE } from '../util/win-paths.js';
 
 // Guardrails: rules you write in ~/.zerostel/policy.json that stop a tool
 // call before it runs, or make the agent ask you first. They match file
@@ -612,6 +613,12 @@ export function normalizePath(raw: string, call: Pick<Call, 'home' | 'cwd' | 'pl
   }
   const abs = norm(path.resolve(call.cwd, p.length > LIMITS.pathLength ? p.slice(0, LIMITS.pathLength) : p));
   const out = [abs];
+  // Windows can't be asked where a path with U+10FFFF really leads (Node aborts
+  // on it; see util/win-paths.ts): checked as written, and the call is asked about
+  if (win && abs.includes(UNPASSABLE)) {
+    gaps?.push('a path with a character Windows can\'t look up');
+    return out;
+  }
   // A network path (\\server\share) on a server the project isn't on is
   // checked as written, not looked up: on Windows, looking it up connects to
   // that server and can hand it the user's sign-in (NTLM) before any rule

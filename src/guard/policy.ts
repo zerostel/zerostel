@@ -335,16 +335,62 @@ function absPatterns(pattern: string, call: Call): string[] {
 export function commandPaths(command: string, max = LIMITS.paths): string[] {
   const out: string[] = [];
   for (const m of command.matchAll(/"([^"]*)"|'([^']*)'|([^\s"';|&<>()`]+)/g)) {
-    const tok = pathLike(m[1] ?? m[2] ?? m[3] ?? '');
-    if (tok) out.push(tok);
+    out.push(...wordPaths(m[1] ?? m[2] ?? m[3] ?? ''));
     if (out.length > max) break;
   }
   return out;
 }
 
-/** The word as a path, if it looks like one; redirections (`>file`, `2>>file`, `<file`) count. */
-function pathLike(word: string): string | null {
-  const tok = word.replace(/^\d?>+|^<+/, '');
+/**
+ * The paths one word can name: the word itself, redirections (`>file`,
+ * `2>>file`, `&>file`, `<file`) included, and also a value written into it.
+ * That is an option's value (`--output=~/x`, `-o~/x`, PowerShell's
+ * `-Path:~/x`), a `name=value` word's (`dd of=~/x`, curl's `-F f=@~/x`), a
+ * file read with `@` or `<` (`curl -d @~/x`), and a `file:` URL. Each is a
+ * way to reach a file without the path being a word of its own.
+ */
+function wordPaths(word: string): string[] {
+  const tok = word.replace(/^(?:\d?>+\|?|&>+|<+)/, '');
+  if (!tok) return [];
+  const values = tok.startsWith('-') ? [] : [tok];
+  if (tok.startsWith('-')) {
+    const ps = /^-[A-Za-z][\w-]*:(.+)$/.exec(tok);
+    if (ps) values.push(ps[1]!);
+    if (/^-[A-Za-z0-9]./.test(tok)) values.push(tok.slice(2));
+  }
+  // `of=~/x`, and `--form=f=@~/x` where the value has a name of its own: what
+  // follows the first, the second and the last `=` (a fixed few, so a long run of
+  // `=` can't make this slow)
+  const first = tok.indexOf('=');
+  if (first > 0) {
+    const second = tok.indexOf('=', first + 1);
+    for (const i of new Set([first, second, tok.lastIndexOf('=')])) if (i > 0) values.push(tok.slice(i + 1));
+  }
+  const out: string[] = [];
+  for (const value of values) {
+    for (const piece of value.includes(',') ? [value, ...value.split(',')] : [value]) {
+      const v = piece.replace(/^[@<]/, '');
+      for (const p of v.includes(';') ? [v, v.slice(0, v.indexOf(';'))] : [v]) {
+        const path = pathLike(p);
+        if (path) out.push(path);
+      }
+    }
+  }
+  return out;
+}
+
+/** The text as a path, if it looks like one; a `file:` URL becomes the path it points to. */
+function pathLike(tok: string): string | null {
+  const url = /^file:\/\/(?:localhost)?(\/[^?#]*)/i.exec(tok);
+  if (url) {
+    let p = url[1]!;
+    try {
+      p = decodeURIComponent(p);
+    } catch {
+      // a broken %-escape: the path as written is still checked
+    }
+    return p.replace(/^\/([A-Za-z]:)/, '$1');
+  }
   if (!tok || tok.startsWith('-') || /^[a-z][a-z0-9+.-]*:\/\//i.test(tok)) return null;
   const named = /[\\/]/.test(tok) || tok.startsWith('~') || tok.startsWith('.') || tok.startsWith('$') || tok.startsWith('%');
   const fileName = /^[\w@+-][\w.@+-]*\.[A-Za-z0-9]{1,10}$/.test(tok) && !/^[\d.]+$/.test(tok);
@@ -574,10 +620,7 @@ function parseCommand(command: string, platform: NodeJS.Platform, depth = 0, out
       for (const form of [words, ...unwrap(words)]) {
         if (!form.length) continue;
         out.parts.push(form.join(' '));
-        for (const word of form) {
-          const p = pathLike(word);
-          if (p) out.paths.push(p);
-        }
+        for (const word of form) out.paths.push(...wordPaths(word));
         for (const inner of innerCommands(form, raw)) nested.add(inner);
       }
     }
@@ -602,8 +645,12 @@ function parseCommand(command: string, platform: NodeJS.Platform, depth = 0, out
 export function normalizePath(raw: string, call: Pick<Call, 'home' | 'cwd' | 'platform'>, gaps?: string[]): string[] {
   const win = call.platform === 'win32';
   let p = raw.trim();
-  p = p.replace(/^(?:\$\{HOME\}|\$HOME|\$env:USERPROFILE|%USERPROFILE%|%HOMEDRIVE%%HOMEPATH%)(?=$|[\\/])/i, call.home);
+  // Git Bash and PowerShell see Windows' variables too: $USERPROFILE is the home folder there
+  p = p.replace(/^(?:\$\{HOME\}|\$HOME|\$\{USERPROFILE\}|\$USERPROFILE|\$env:USERPROFILE|\$env:HOME|%USERPROFILE%|%HOMEDRIVE%%HOMEPATH%|\$\{?HOMEDRIVE\}?\$\{?HOMEPATH\}?|\$env:HOMEDRIVE\$env:HOMEPATH)(?=$|[\\/])/i, call.home);
   if (p === '~' || /^~[\\/]/.test(p)) p = call.home + p.slice(1);
+  // ~name is that user's home folder; for the user running the agent, that's this one
+  const user = /^~([^\\/]+)(?=$|[\\/])/.exec(p);
+  if (user && user[1]!.toLowerCase() === path.basename(call.home).toLowerCase()) p = call.home + p.slice(user[0].length);
   if (win) {
     // \\?\UNC\server\share is \\server\share; \\?\C:\x is C:\x
     p = p.replace(/^\\\\[?.]\\UNC\\/i, '\\\\').replace(/^\\\\[?.]\\(?=[A-Za-z]:)/, '');

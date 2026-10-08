@@ -26,7 +26,7 @@ Rules live in `~/.zerostel/policy.json`. With no file there are no rules. `zeros
 - `"access": "write"` limits a rule to tools that can change files.
 - **`deny`** stops the call before it runs, and the agent is told why. **`ask`** makes Claude Code ask you; agents that can't pause to ask block the call and tell the agent to check with you.
 
-Paths like `$HOME/.ssh`, `%USERPROFILE%\.ssh` or Git Bash's `/c/Users/...` are recognised for what they are, and so are paths with quotes inside (`~/.s"sh"/id_rsa`) and paths inside `bash -c "..."`.
+Paths like `$HOME/.ssh`, `$USERPROFILE/.ssh`, `%USERPROFILE%\.ssh`, `~you/.ssh` or Git Bash's `/c/Users/...` are recognised for what they are, and so are paths with quotes inside (`~/.s"sh"/id_rsa`) and paths inside `bash -c "..."`. So are paths written into another word: an option's value (`--output=~/.ssh/x`, `-o~/.ssh/x`, PowerShell's `-Path:~\.ssh\x`), a `name=value` word (`dd of=~/.ssh/x`), a file curl sends (`-d @~/.aws/credentials`, `-F f=@~/.aws/credentials`) and a `file:` URL.
 
 Property-based tests (`test/guard-fuzz.test.ts`, with fast-check) generate thousands of spellings of denied commands and paths on every test run and check that each one is still denied.
 

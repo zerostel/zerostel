@@ -61,4 +61,4 @@ Claude Code's plugin hooks live in `hooks/claude-code.json` rather than `hooks/h
 
 ## Website
 
-`site/` is static and deploys as is (Cloudflare Pages, with `site/_headers` for the security headers). See `site/README.md`.
+`site/` is static and deploys as is (Cloudflare Pages, with `site/_headers` for the security headers). See [docs/website.md](website.md).

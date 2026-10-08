@@ -68,7 +68,7 @@ const TOOLS = [
     name: 'checks',
     title: 'List the checks and whether they still hold',
     description:
-      "The tests, type checks, linters and builds run in this session: whether each passed, and whether the code has changed since it ran. Read it before saying the work is tested: a pass on code that has changed since doesn't count. Doesn't change the project.",
+      "The tests, type checks, linters and builds run in this session: whether each passed, which tests failed, and whether the code has changed since it ran. Read it before saying the work is tested: a pass on code that has changed since doesn't count. Doesn't change the project.",
     inputSchema: { type: 'object', properties: {} },
     annotations: LOCAL_READ,
   },

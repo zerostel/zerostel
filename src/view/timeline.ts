@@ -2,6 +2,7 @@ import type { Session, Step } from '../store/session.js';
 import { shortId, stepDuration, summarize } from '../store/session.js';
 import type { FileChange } from '../store/shadow.js';
 import { ago, c, fmtClock, fmtDate, fmtDuration, fmtTokens, oneLine, truncate } from '../util/term.js';
+import { failedTests, failedText } from '../commands/failed-tests.js';
 
 export const AGENT_NAMES: Record<string, string> = {
   'claude-code': 'Claude Code',
@@ -151,6 +152,11 @@ export function renderTimeline(s: Session, opts: { onlyChanges?: boolean; width?
     const checked = st.type === 'tool' && st.check ? (st.check.ok === true ? c.green(`  ✓ ${st.check.kind} passed`) : st.check.ok === false ? c.red(`  ✗ ${st.check.kind} failed`) : c.dim(`  ${st.check.kind}: result not reported`)) : '';
     const flag = isDrastic(st) ? c.red('  ⚠') : flagBare && st.nosnap ? c.yellow('  no snapshot') : checked ? checked : st.type === 'hooks' ? c.red('  recorder changed') : st.type === 'guard' ? (st.guard === 'deny' ? c.red('  blocked by policy') : c.yellow('  asked first')) : '';
     lines.push(`${c.dim(num)}  ${c.dim(fmtClock(st.ts))}  ${icon(st)} ${text} ${c.dim(dur.padStart(6))}  ${fileBadge(st.files)}${flag}`.trimEnd());
+    // a test run that failed: which tests, when its output names them
+    if (st.check?.ok === false || (st.type === 'check' && st.ok === false)) {
+      const names = failedTests(st.output);
+      if (names.length) lines.push(c.red(`${' '.repeat(numW + 14)}${truncate(failedText(names, 3), width - numW - 16)}`));
+    }
   }
   return lines;
 }

@@ -6,6 +6,9 @@ import { redact } from '../detect/secrets.js';
 import { childEnv } from '../util/exec.js';
 import { c, oneLine, truncate } from '../util/term.js';
 import { agentName } from '../view/timeline.js';
+import { failedTests, failedText } from './failed-tests.js';
+
+export { failedTests, failedText };
 
 // A check is a command whose result says something about the code: tests,
 // type checks, linters, builds. Zerostel ties each result to the snapshot
@@ -131,12 +134,14 @@ export interface CheckRun {
   by: 'agent' | 'zerostel';
   snap?: string; // the snapshot of the code it ran against
   ts: string;
+  /** the tail of what it printed, as recorded */
+  output?: string;
 }
 
 export function checkRuns(s: Session): CheckRun[] {
   return s.steps
     .filter((x) => x.check)
-    .map((x) => ({ n: x.n, ts: x.ts, ...x.check! }));
+    .map((x) => ({ n: x.n, ts: x.ts, output: x.output, ...x.check! }));
 }
 
 export type Freshness = { state: 'current' } | { state: 'stale'; files: FileChange[] } | { state: 'unknown' };
@@ -151,6 +156,8 @@ export interface CheckStatus {
   alwaysFailed: boolean;
   /** passed at this step, then failed later */
   passedBefore?: CheckRun;
+  /** the tests its latest run says failed, when it failed and named them */
+  failed: string[];
 }
 
 /** Test files: a deleted or rewritten test can make a check pass for the wrong reason. */
@@ -176,7 +183,8 @@ export function checkStatuses(p: Project, s: Session, current: string | null): C
       }
     }
     const passedBefore = latest.ok === false ? [...runs].reverse().find((r) => r.ok === true) : undefined;
-    out.push({ name, kind: latest.kind, latest, freshness, runs: runs.length, alwaysFailed: runs.length > 1 && runs.every((r) => r.ok === false), passedBefore });
+    const failed = latest.ok === false ? failedTests(latest.output) : [];
+    out.push({ name, kind: latest.kind, latest, freshness, runs: runs.length, alwaysFailed: runs.length > 1 && runs.every((r) => r.ok === false), passedBefore, failed });
   }
   return out.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.latest.n - b.latest.n);
 }
@@ -216,6 +224,7 @@ export function renderChecks(p: Project, s: Session, current: string | null): st
   for (const st of statuses) {
     lines.push(`  ${c.bold(truncate(redact(st.name), 60))}`);
     lines.push(`    ${resultText(st)} · ${freshnessText(st.freshness)}`);
+    if (st.failed.length) lines.push(c.red(`    ${failedText(st.failed)}`));
     if (st.passedBefore) lines.push(c.yellow(`    passed at #${st.passedBefore.n}, failing since`));
     else if (st.alwaysFailed) lines.push(c.dim(`    failed all ${st.runs} times it ran in this session: it may have been broken before the session started`));
   }

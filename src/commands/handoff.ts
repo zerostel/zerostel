@@ -50,7 +50,10 @@ const checkCode = (name: string) => code(truncate(redact(name), 80));
 
 function checkLine(st: CheckStatus): string {
   const r = st.latest;
-  const result = r.ok === true ? 'passed' : r.ok === false ? 'FAILED' : 'ran, result not reported';
+  // how many tests failed, never their names: names come from tool output, and none of that goes into a handoff
+  const n = st.failed.length;
+  const failed = n ? ` (${n}${n >= 20 ? '+' : ''} test${n === 1 ? '' : 's'}; \`zerostel checks\` names them)` : '';
+  const result = r.ok === true ? 'passed' : r.ok === false ? `FAILED${failed}` : 'ran, result not reported';
   const who = r.by === 'zerostel' ? 'run by zerostel check' : 'as the agent reported it';
   const fresh =
     st.freshness.state === 'current'

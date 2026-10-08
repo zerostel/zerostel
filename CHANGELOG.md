@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Checks
+
+- `zerostel checks` and `zerostel log` say which tests failed, read from the output already recorded: vitest, jest, pytest, go test, cargo test, TAP and node --test, dotnet test, rspec and Gradle (#7). The MCP `checks` tool includes them; a handoff gives only how many, since it copies no tool output.
+
 MCP
 
 - Every tool has a title and annotations that say what it does to your machine, for clients that decide from them what to approve: only `rewind` can change project files, `checkpoint` adds a snapshot, the others only read, and none of them reach the network. `verify` now says what it checks, what it returns and when to use it (#15).

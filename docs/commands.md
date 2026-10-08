@@ -32,12 +32,14 @@ A rewind never deletes or overwrites a file the snapshot it takes first has no e
 
 | Command | |
 |---|---|
-| `zerostel checks` | Every test, type check, linter and build the session ran: passed, failed, or **out of date** because the code changed after it ran. Also flags test files the session changed or deleted. |
+| `zerostel checks` | Every test, type check, linter and build the session ran: passed, failed, or **out of date** because the code changed after it ran. For a test run that failed, which tests failed (`zerostel log` shows them too). Also flags test files the session changed or deleted. |
 | `zerostel check -- <command>` | Run one yourself (`zerostel check -- npm test`) and record its result against the code as it is now. Exits with the command's exit code. |
 | `zerostel handoff` | What the next agent or person needs to carry on: your prompts (the only instructions in it), which files differ, which checks still hold, what was tried and undone, what isn't covered. `-o file` to save it. |
 | `zerostel handoff check <file>` | Whether the folder still matches a handoff, and which files changed if not. |
 
 A check the agent ran counts as passed only when the agent reports the result (Claude Code, Cursor and Copilot CLI send failed tool calls separately; for the others Zerostel looks for an exit code in what the agent reports). A command whose exit status can't be the check's own (`npm test | tail`, `npm test || true`) is treated the same way. When the result is unknown, it shows as "result not reported", never as "passed".
+
+Which tests failed comes from the end of the output Zerostel already recorded (nothing is run again), as vitest, jest, pytest, go test, cargo test, TAP and node --test, dotnet test, rspec and Gradle print it: at most 20 names. A handoff says how many failed but not which: it copies no tool output.
 
 **Share and check**
 

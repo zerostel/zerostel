@@ -41,6 +41,25 @@ describe('MCP server', () => {
     expect(odd.result.protocolVersion).toBe('2025-06-18');
   });
 
+  it("tells clients what each tool does to the machine: only rewind changes project files, and nothing reaches the network", () => {
+    type Tool = { name: string; title?: string; description: string; annotations?: Record<string, boolean> };
+    const { tools } = (handleMessage(sb.ctx, { jsonrpc: '2.0', id: 2, method: 'tools/list' }) as { result: { tools: Tool[] } }).result;
+    const by = Object.fromEntries(tools.map((t) => [t.name, t]));
+    for (const t of tools) {
+      expect(t.title, t.name).toBeTruthy();
+      expect(t.annotations?.openWorldHint, t.name).toBe(false);
+    }
+    for (const name of ['timeline', 'checks', 'handoff', 'verify', 'check_policy']) expect(by[name]!.annotations?.readOnlyHint, name).toBe(true);
+    expect(by.rewind!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false });
+    expect(by.checkpoint!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    // verify says what it checks, what it returns and when to use it
+    expect(by.verify!.description).toMatch(/hash/);
+    expect(by.verify!.description).toMatch(/Log intact/);
+    expect(by.verify!.description).toMatch(/Use it/);
+    // and that is what it returns
+    expect(call('verify').text).toMatch(/^Log intact: \d+ events/);
+  });
+
   it('previews a rewind without touching files, and applies it only when asked', () => {
     const preview = call('rewind', { step: '0' });
     expect(preview.text).toMatch(/preview/);

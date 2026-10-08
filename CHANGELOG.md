@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+MCP
+
+- Every tool has a title and annotations that say what it does to your machine, for clients that decide from them what to approve: only `rewind` can change project files, `checkpoint` adds a snapshot, the others only read, and none of them reach the network. `verify` now says what it checks, what it returns and when to use it (#15).
+
 Maintenance
 
 - CI tests every commit on Node 26 too, on Linux, macOS and Windows; the demo recording image moved to Node 26 (#14).

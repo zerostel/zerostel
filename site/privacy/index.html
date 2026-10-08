@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Privacy · Zerostel</title>
+<meta name="description" content="Zerostel collects nothing. It runs on your computer, keeps what it records there, and sends nothing anywhere.">
+<link rel="canonical" href="https://zerostel.com/privacy/">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/assets/icon-256.png">
+<meta name="theme-color" content="#19242d">
+<link rel="stylesheet" href="/assets/site.css?v=08f2cbd5d9">
+<script src="/assets/site.js?v=d48fee876f" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Zerostel home">
+      <img class="logo-light" src="/assets/logo-light.svg" alt="Zerostel" width="114" height="26">
+      <img class="logo-dark" src="/assets/logo-dark.svg" alt="Zerostel" width="114" height="26">
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a class="hide-sm" href="/#how">How it works</a>
+      <a class="hide-sm" href="/#security">Security</a>
+      <a class="gh" href="https://github.com/zerostel/zerostel">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="post">
+  <header>
+    <h1>Privacy</h1>
+    <p class="lede">Zerostel collects nothing. It runs on your computer, keeps what it records there, and sends nothing anywhere.</p>
+    <p class="meta">Last changed <time datetime="2026-10-08">8 October 2026</time></p>
+  </header>
+
+  <h2 id="program">The program</h2>
+  <p>This covers Zerostel however you install it: the npm package, the executables, the Claude Code plugin, the other agents' plugins and extensions, the MCP server and the GitHub Action.</p>
+  <ul>
+    <li><b>What it records.</b> Your coding agents' sessions: your prompts, their tool calls and commands, the end of each command's output with the secrets it recognizes masked, which files changed, time and token counts. And snapshots of your project's files, including small files git ignores, such as <code>.env</code>, so a rewind can bring them back.</li>
+    <li><b>Where it keeps it.</b> In <code>~/.zerostel</code> on your computer (or the folder <code>ZEROSTEL_DIR</code> names), readable only by your user account. Your project's own <code>.git</code> is never touched.</li>
+    <li><b>What it sends.</b> Nothing. There is no telemetry, no analytics, no account and no update check. The only server in the program is <code>zerostel ui</code>, which serves the timeline on 127.0.0.1 to your own browser, and only while you run it.</li>
+    <li><b>What you share.</b> A report from <code>zerostel report</code> is a file you choose to give to someone. With <code>--share</code> it leaves out prompts, commands, output and diffs.</li>
+    <li><b>Deleting it.</b> <code>zerostel prune</code> removes recordings older than 30 days by default, and deleting <code>~/.zerostel</code> removes everything. <code>zerostel uninstall</code> takes Zerostel out of your agents.</li>
+  </ul>
+
+  <h2 id="downloads">Where you get it</h2>
+  <p>Zerostel is published on npm, GitHub, the MCP Registry and Anthropic's plugin directory. Downloading or installing it from one of them is covered by that service's own privacy policy.</p>
+
+  <h2 id="site">This website</h2>
+  <p>zerostel.com is a set of static pages served by Cloudflare Pages. It sets no cookies and has no analytics and no third-party scripts or fonts. Cloudflare handles each request, including your IP address, to deliver the pages, under <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.</p>
+
+  <h2 id="email">Email</h2>
+  <p>Mail to hello@zerostel.com or security@zerostel.com is forwarded to the maintainer and used only to answer you.</p>
+
+  <h2 id="changes">Changes and questions</h2>
+  <p>If this page changes, the date at the top changes with it, and the history is in <a href="https://github.com/zerostel/zerostel/commits/main/site/privacy/index.html">the repository</a>. Questions: <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>.</p>
+</article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Zerostel · Apache-2.0</span>
+    <nav aria-label="Footer">
+      <a href="/">Home</a>
+      <a href="https://github.com/zerostel/zerostel">GitHub</a>
+      <a href="https://github.com/zerostel/zerostel/blob/main/SECURITY.md">Security</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="mailto:hello@zerostel.com">hello@zerostel.com</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

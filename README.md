@@ -108,7 +108,7 @@ Agents don't all report the same things to their hooks (prompts, failed commands
 
 Zerostel doesn't care which model is behind the agent: Claude, GPT, Gemini, DeepSeek or a local one are all recorded the same way.
 
-Windows, macOS and Linux (WSL too). CI runs every commit on all three with Node 20, 22 and 24.
+Windows, macOS and Linux (WSL too). CI runs every commit on all three with Node 20, 22, 24 and 26.
 
 ## Install
 

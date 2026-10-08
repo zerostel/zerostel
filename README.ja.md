@@ -108,7 +108,7 @@ Zerostel は対応するすべてのエージェントを同じ方法で記録�
 
 エージェントの裏にあるモデルは問いません。Claude、GPT、Gemini、DeepSeek、ローカルモデルのいずれも同じように記録します。
 
-Windows、macOS、Linux（WSL を含む）に対応。CI はすべてのコミットを 3 つの OS と Node 20／22／24 でテストしています。
+Windows、macOS、Linux（WSL を含む）に対応。CI はすべてのコミットを 3 つの OS と Node 20／22／24／26 でテストしています。
 
 ## インストール
 

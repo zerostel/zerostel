@@ -108,7 +108,7 @@ Zerostel 用同一种方式记录每个支持的 agent：在每个可能改文�
 
 Zerostel 不在乎 agent 背后用的是哪个模型：Claude、GPT、Gemini、DeepSeek 或本地模型，记录方式都一样。
 
-支持 Windows、macOS、Linux（含 WSL）。CI 会在三个系统、Node 20／22／24 上测试每一次提交。
+支持 Windows、macOS、Linux（含 WSL）。CI 会在三个系统、Node 20／22／24／26 上测试每一次提交。
 
 ## 安装
 

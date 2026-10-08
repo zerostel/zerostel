@@ -56,7 +56,7 @@ If the agent has hooks, add an adapter to `src/agents/adapters.ts` (the fields a
 
 - For anything bigger than a fix, open an issue or a discussion first, so we agree on the approach before you write it.
 - One change per pull request, with tests. A bug fix comes with a test that fails without it.
-- `npm run typecheck && npm test && npm run smoke` pass on your machine. CI runs the same on Linux, macOS and Windows with Node 20, 22 and 24; for pull requests from forks it starts once a maintainer approves the run.
+- `npm run typecheck && npm test && npm run smoke` pass on your machine. CI runs the same on Linux, macOS and Windows with Node 20, 22, 24 and 26; for pull requests from forks it starts once a maintainer approves the run.
 - Match the code around you; there's no formatter to run. Comments say why, not what.
 - Anything users will notice gets a line in `CHANGELOG.md` under `## Unreleased` (add the heading if it isn't there).
 - No new runtime dependencies. New dev dependencies need a good reason, since they run in CI.

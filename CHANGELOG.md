@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+Maintenance
+
+- CI tests every commit on Node 26 too, on Linux, macOS and Windows; the demo recording image moved to Node 26 (#14).
+- Node 20 reached end of life in April 2026. Zerostel still runs on it, but a later release will need Node 22 or newer.
+- zerostel.com no longer serves the maintainers' notes about the site folder; they moved to `docs/website.md` (#13).
+
 ## 0.2.1 (2026-10-05)
 
 Fixes to 0.2.0's checks, handoffs and `--keep-others`, from a second review. After upgrading, run `zerostel install` once more.

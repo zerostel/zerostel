@@ -114,4 +114,4 @@ Each line of `sessions/*.jsonl` is one event (`src/store/session.ts`). The first
 ## Tests
 
 - `npm test` — unit and integration tests with real git in temp folders, including `test/security.test.ts` for hostile project contents.
-- `npm run smoke` — the built CLI end to end in a temp folder, with hooks invoked the way each agent invokes them on the current OS. CI runs both on Linux, macOS and Windows with Node 20, 22 and 24.
+- `npm run smoke` — the built CLI end to end in a temp folder, with hooks invoked the way each agent invokes them on the current OS. CI runs both on Linux, macOS and Windows with Node 20, 22, 24 and 26.

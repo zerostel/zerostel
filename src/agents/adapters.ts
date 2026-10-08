@@ -89,6 +89,11 @@ export interface Adapter {
   /** stdout that makes the agent block a tool call (or ask the user first) before it runs */
   decide?(d: Decision): string;
   normalize(raw: Record<string, unknown>, event?: string): HookInput | null;
+  /**
+   * The id of another agent that ran this one's hooks (an adapter's, or one
+   * of GUESTS), told by its payload or by `env`, the hook's environment.
+   */
+  ranBy?(raw: Record<string, unknown>, env: NodeJS.ProcessEnv): string | undefined;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
@@ -203,10 +208,27 @@ export const claudeCode: Adapter = {
   asks: true,
   decide: claudeDecision(true),
   normalize(raw) {
-    // Cursor replays Claude Code hooks by default; the Cursor adapter records those
-    if (raw.cursor_version !== undefined) return null;
     const moment = own(CLAUDE_EVENTS, String(raw.hook_event_name));
     return moment ? common(raw, moment) : null;
+  },
+  // Other agents run Claude Code's hooks too. They leave a mark in the payload
+  // or in a variable they set for their hooks. A Claude Code started from
+  // another agent inherits that agent's variables, but it names its own
+  // session in CLAUDE_CODE_SESSION_ID: its calls are never taken for another's.
+  ranBy(raw, env) {
+    // Cursor runs them by default
+    if (raw.cursor_version !== undefined) return 'cursor';
+    if (str(raw.session_id) && env.CLAUDE_CODE_SESSION_ID === raw.session_id) return undefined;
+    // Copilot CLI runs a project's .claude/settings.json. Everything it starts
+    // has COPILOT_CLI=1, but only its own payloads carry a timestamp
+    if (env.COPILOT_CLI === '1' && typeof raw.timestamp === 'string') return 'copilot';
+    // Continue CLI and Devin read ~/.claude/settings.json as well
+    if (env.CONTINUE_PROJECT_DIR) return 'continue';
+    if (env.DEVIN_PROJECT_DIR) return 'devin';
+    // set for hooks only; CRUSH and AI_AGENT are on everything Crush starts
+    if (env.CRUSH_EVENT) return 'crush';
+    if (env.OPENHANDS_EVENT_TYPE) return 'openhands';
+    return undefined;
   },
 };
 
@@ -846,6 +868,26 @@ export function apply(ctx) {
 };
 
 export const ADAPTERS: Adapter[] = [claudeCode, codex, cursor, gemini, antigravity, copilot, opencode, deepseek];
+
+// Agents with no adapter of their own that run Claude Code's hooks, with its
+// payload. Their calls are recorded under their own name. Whether they can
+// pause to ask the user isn't known, so there a rule's "ask" blocks.
+const claudeGuest = (id: string, name: string): Adapter => ({ ...claudeCode, id, name, asks: false, decide: claudeDecision(false), ranBy: undefined });
+
+export const GUESTS: Adapter[] = [claudeGuest('continue', 'Continue CLI'), claudeGuest('devin', 'Devin'), claudeGuest('crush', 'Crush'), claudeGuest('openhands', 'OpenHands')];
+
+/**
+ * The adapter for the agent that really ran a hook of `a`'s: `a` itself, the
+ * adapter of another agent that runs a's hooks too, or a guest. null when that
+ * other agent's own Zerostel hooks are `installed`: they record the call.
+ */
+export function hookRunner(a: Adapter, raw: Record<string, unknown>, env: NodeJS.ProcessEnv, installed: (other: Adapter) => boolean): Adapter | null {
+  const id = a.ranBy?.(raw, env);
+  if (!id || id === a.id) return a;
+  const other = getAdapter(id);
+  if (other) return installed(other) ? null : other;
+  return GUESTS.find((g) => g.id === id) ?? a;
+}
 
 /** What a hook prints when no rule has anything to say. */
 export function ackFor(a: Adapter, raw: Record<string, unknown>): string | undefined {

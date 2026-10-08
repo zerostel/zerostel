@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Recording
+
+- An agent that runs Claude Code's hooks is recorded as itself, and once. Copilot CLI runs a project's `.claude/settings.json`, so where Zerostel's Claude Code hooks were in one (a team's committed settings, say), each Copilot CLI call was recorded twice, as Copilot CLI and as Claude Code, and the guardrails answered twice. Continue CLI and Devin read `~/.claude/settings.json` as well, which would record their calls as Claude Code's. Zerostel now tells them apart by what they put in the hook's payload or environment: when the agent has Zerostel hooks of its own, those record the call; otherwise it's recorded under the agent's name (Copilot CLI, Cursor, Continue CLI, Devin, Crush, OpenHands), and a rule set to "ask" blocks there, as for Codex. Before, Cursor's calls through Claude Code's hooks were dropped even when Zerostel's Cursor hooks weren't installed. [What this means for each agent](docs/install.md#agents-that-run-claude-codes-hooks).
+
 ## 0.3.2 (2026-10-08)
 
 A security fix for the guardrails. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.

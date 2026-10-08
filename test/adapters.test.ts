@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ADAPTERS, antigravity, copilot, gemini, opencode } from '../src/agents/adapters.js';
+import { ADAPTERS, antigravity, claudeCode, copilot, cursor, gemini, GUESTS, opencode } from '../src/agents/adapters.js';
 import { handleHook } from '../src/agents/hooks.js';
+import { STARTER } from '../src/guard/policy.js';
 import { applyPlan, hookEntry, hookStatus, planInstall, planUninstall, shArg } from '../src/install.js';
 import { openProject } from '../src/store/project.js';
 import { listSessions, loadSession } from '../src/store/session.js';
+import { agentName } from '../src/view/timeline.js';
 import { sandbox, type Sandbox } from './helpers.js';
 
 let sb: Sandbox;
@@ -171,5 +174,124 @@ describe('opencode', () => {
     const s = steps('opencode');
     expect(s[0]!.summary).toBe('Edit x.ts');
     expect(s[0]!.files.map((f) => f.path)).toEqual(['x.ts']);
+  });
+});
+
+describe('other agents running Claude Code hooks', () => {
+  // captured from Copilot CLI 1.0.91 running a project's .claude/settings.json
+  const copilotEnv = (): NodeJS.ProcessEnv => ({ COPILOT_CLI: '1', COPILOT_PROJECT_DIR: sb.project, CLAUDE_PROJECT_DIR: sb.project });
+  const fromCopilot = (e: Record<string, unknown>) => ({ session_id: '19511c47', timestamp: '2026-10-08T13:18:08.169Z', cwd: sb.project, ...e });
+  const probe = { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'echo zerostel-probe', description: 'Run requested probe command', mode: 'sync', initial_wait: 30 } };
+  const probed = { ...probe, hook_event_name: 'PostToolUse', tool_result: { result_type: 'success', text_result_for_llm: 'zerostel-probe\n<shellId: 0 completed with exit code 0>' } };
+  const credentials = { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'cat ~/.aws/credentials' } };
+  const rules = () => {
+    fs.mkdirSync(sb.ctx.dataDir, { recursive: true });
+    fs.writeFileSync(path.join(sb.ctx.dataDir, 'policy.json'), JSON.stringify(STARTER));
+  };
+  const agents = () => listSessions(openProject(sb.project, sb.ctx)).map((r) => r.agent);
+
+  it("records a Copilot CLI call once, through Copilot CLI's own hooks", () => {
+    applyPlan(planInstall(linux(), copilot));
+    rules();
+    // Copilot CLI runs both: the project's Claude Code hooks and its own
+    for (const e of [{ hook_event_name: 'UserPromptSubmit', prompt: 'run the probe' }, probe, probed]) {
+      expect(handleHook('claude-code', fromCopilot(e), sb.ctx, undefined, { env: copilotEnv() })).toEqual({});
+      handleHook('copilot', fromCopilot(e), sb.ctx, undefined, { env: copilotEnv() });
+    }
+    expect(agents()).toEqual(['copilot']);
+    expect(steps('copilot').map((x) => x.summary)).toEqual(['run the probe', '$ echo zerostel-probe']);
+    // and the rules answer once, from Copilot CLI's hook
+    expect(handleHook('claude-code', fromCopilot(credentials), sb.ctx, undefined, { env: copilotEnv() }).decision).toBeUndefined();
+    expect(handleHook('copilot', fromCopilot(credentials), sb.ctx, undefined, { env: copilotEnv() }).decision?.action).toBe('deny');
+  });
+
+  it("records it as Copilot CLI, answered in its format, when Copilot CLI's own hooks aren't installed", () => {
+    for (const e of [probe, probed]) handleHook('claude-code', fromCopilot(e), sb.ctx, undefined, { env: copilotEnv() });
+    expect(agents()).toEqual(['copilot']);
+    expect(steps('copilot')[0]).toMatchObject({ summary: '$ echo zerostel-probe', ok: true, output: expect.stringContaining('zerostel-probe') });
+    rules();
+    const res = handleHook('claude-code', fromCopilot(credentials), sb.ctx, undefined, { env: copilotEnv() });
+    expect(res.runner).toBe(copilot);
+    expect(JSON.parse(res.runner!.decide!(res.decision!))).toMatchObject({ permissionDecision: 'deny' });
+  });
+
+  it("doesn't take Copilot CLI's variables alone for Copilot CLI", () => {
+    // a Claude Code started from Copilot CLI's shell has COPILOT_CLI=1, but no timestamp in its payloads
+    handleHook('claude-code', { session_id: 'cc0', cwd: sb.project, hook_event_name: 'UserPromptSubmit', prompt: 'hi' }, sb.ctx, undefined, { env: copilotEnv() });
+    expect(agents()).toEqual(['claude-code']);
+  });
+
+  it('records an agent Zerostel has no adapter for under its own name, and blocks where a rule asks', () => {
+    rules();
+    // Continue CLI runs ~/.claude/settings.json with Claude Code's payload
+    const env = { CONTINUE_PROJECT_DIR: sb.project, CLAUDE_PROJECT_DIR: sb.project };
+    const ev = (e: Record<string, unknown>) => handleHook('claude-code', { session_id: 'cn1', cwd: sb.project, ...e }, sb.ctx, undefined, { env });
+    ev({ hook_event_name: 'UserPromptSubmit', prompt: 'tidy up' });
+    const res = ev({ hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 'w1', tool_input: { file_path: path.join(sb.project, '.env'), content: 'X=1' } });
+    expect(res.runner?.id).toBe('continue');
+    expect(res.decision?.action).toBe('ask');
+    // it may not know "ask": it's told no, and to get the user's go-ahead
+    expect(JSON.parse(res.runner!.decide!(res.decision!)).hookSpecificOutput).toMatchObject({ permissionDecision: 'deny', permissionDecisionReason: expect.stringContaining("user's go-ahead") });
+    expect(agents()).toEqual(['continue']);
+    expect(agentName('continue')).toBe('Continue CLI');
+    expect(steps('continue').map((x) => [x.summary, x.guard])).toEqual([
+      ['tidy up', undefined],
+      ['Write .env', 'deny'],
+    ]);
+  });
+
+  it('knows Devin, Crush and OpenHands by the variables they set for hooks', () => {
+    const cases: [string, NodeJS.ProcessEnv][] = [
+      ['devin', { DEVIN_PROJECT_DIR: sb.project }],
+      ['crush', { CRUSH: '1', AI_AGENT: 'crush', CRUSH_EVENT: 'PreToolUse' }],
+      ['openhands', { OPENHANDS_EVENT_TYPE: 'PreToolUse', OPENHANDS_TOOL_NAME: 'terminal' }],
+    ];
+    for (const [id, env] of cases) {
+      expect(claudeCode.ranBy!({ session_id: 's', hook_event_name: 'PreToolUse' }, env)).toBe(id);
+      expect(GUESTS.find((g) => g.id === id)).toMatchObject({ asks: false });
+      expect(agentName(id)).not.toBe(id);
+    }
+    // what Crush puts on everything it starts isn't enough
+    expect(claudeCode.ranBy!({ session_id: 's', hook_event_name: 'PreToolUse' }, { CRUSH: '1', AGENT: 'crush', AI_AGENT: 'crush' })).toBeUndefined();
+  });
+
+  it("keeps Claude Code's own calls as Claude Code, whatever it inherited", () => {
+    // claude started from another agent's hook inherits its variables, and names its own session
+    const env = { COPILOT_CLI: '1', CONTINUE_PROJECT_DIR: sb.project, DEVIN_PROJECT_DIR: sb.project, CRUSH_EVENT: 'Stop', OPENHANDS_EVENT_TYPE: 'Stop', CLAUDE_CODE_SESSION_ID: 'cc1' };
+    handleHook('claude-code', { session_id: 'cc1', cwd: sb.project, hook_event_name: 'UserPromptSubmit', prompt: 'hi' }, sb.ctx, undefined, { env });
+    expect(agents()).toEqual(['claude-code']);
+  });
+
+  it('never takes a call for another agent when Claude Code names the session as its own', () => {
+    const inherited = fc.record(
+      {
+        COPILOT_CLI: fc.constantFrom('1', ''),
+        CONTINUE_PROJECT_DIR: fc.string(),
+        DEVIN_PROJECT_DIR: fc.string(),
+        CRUSH_EVENT: fc.string(),
+        OPENHANDS_EVENT_TYPE: fc.string(),
+        AI_AGENT: fc.constantFrom('crush', 'claude-code_2-1-293_agent'),
+      },
+      { requiredKeys: [] },
+    );
+    // whatever else Claude Code may add to its payload, a timestamp included
+    const extra = fc.dictionary(fc.string().filter((k) => k !== 'cursor_version' && k !== 'session_id'), fc.jsonValue(), { maxKeys: 5 });
+    fc.assert(
+      fc.property(fc.string({ minLength: 1 }), inherited, extra, fc.option(fc.string()), (sid, env, more, timestamp) => {
+        const raw = { ...more, ...(timestamp === null ? {} : { timestamp }), session_id: sid, hook_event_name: 'PreToolUse' };
+        expect(claudeCode.ranBy!(raw, { ...env, CLAUDE_CODE_SESSION_ID: sid })).toBeUndefined();
+      }),
+    );
+  });
+
+  it("leaves a Cursor call to Cursor's own hooks, and records it as Cursor without them", () => {
+    const fromCursor = { conversation_id: 'k1', session_id: 'k1', cursor_version: '3.20', workspace_roots: [sb.project], hook_event_name: 'beforeSubmitPrompt', prompt: 'hello' };
+    handleHook('claude-code', fromCursor, sb.ctx);
+    expect(agents()).toEqual(['cursor']);
+    sb.cleanup();
+    sb = sandbox();
+    applyPlan(planInstall(linux(), cursor));
+    expect(handleHook('claude-code', { ...fromCursor, workspace_roots: [sb.project] }, sb.ctx)).toEqual({});
+    expect(fs.existsSync(path.join(sb.ctx.dataDir, 'projects'))).toBe(false);
   });
 });

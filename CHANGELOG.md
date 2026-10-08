@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-10-08)
+
+A security fix for Windows. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.
 
 Security
 

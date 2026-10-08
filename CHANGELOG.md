@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 (2026-10-08)
+
+A security fix for the guardrails. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.
 
 Security
 

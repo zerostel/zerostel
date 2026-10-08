@@ -1,6 +1,6 @@
 {
   "name": "zerostel",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Rewind any AI agent to point zero. A flight recorder and time machine for Claude Code, Codex, Cursor and other coding agents.",
   "keywords": [
     "ai-agent",

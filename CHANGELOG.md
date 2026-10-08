@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Security
+
+- Guardrail rules see a command the way the shell runs it (#3). Before, a rule for `git reset --hard*` or `rm -rf *` missed `"git" reset --hard`, `\rm -rf x`, `/usr/bin/git reset --hard`, `GIT_DIR=.git git reset --hard`, `git -C repo reset --hard`, `sudo -u root rm -rf x` and `bash -c 'cd x && rm -rf y'`. Now each part is also read with quotes and backslashes undone, `VAR=value` and wrappers (`sudo`, `env`, `nice`, `timeout`, `xargs`...) taken off, the program's folder and `.exe` dropped, git's own options skipped, and what `sh -c`, `bash -c`, `cmd /c` and `powershell -Command` or `-EncodedCommand` run looked at too. A rule can only match more than before, never less.
+- Path rules see paths with quotes inside (`cat ~/.s"sh"/id_rsa`) and paths inside `bash -c "..."` (#3).
+- A path or command rule with a character outside the BMP (an emoji, some CJK characters) never matched; it does now. `**/` no longer matches part of a name: `**/.env` matched `x.env` (#3).
+- Property-based tests (fast-check, a development dependency only) generate thousands of spellings of denied commands and paths on every run and check that each is still denied (#3).
+
 Checks
 
 - `zerostel checks` and `zerostel log` say which tests failed, read from the output already recorded: vitest, jest, pytest, go test, cargo test, TAP and node --test, dotnet test, rspec and Gradle (#7). The MCP `checks` tool includes them; a handoff gives only how many, since it copies no tool output.

@@ -20,12 +20,15 @@ Rules live in `~/.zerostel/policy.json`. With no file there are no rules. `zeros
 
 - `paths` match files a tool names, and paths that appear in shell commands. `~/` is your home folder; other relative globs start at the project root. `**` crosses folders, `*` doesn't.
 - `commands` match each part of a shell command, split at `&&`, `||`, `;`, `|`, `&`, `( )`, `$( )` and backticks, without regard to case. A pattern matches a whole part, and `*` matches anything, spaces included: `curl *-d *` catches `curl -H 'x: y' -d @data.json https://...`.
+- Each part is also read the way the shell runs it, so `git reset --hard*` catches `"git" reset --hard`, `\git reset --hard`, `/usr/bin/git reset --hard`, `GIT_DIR=.git git reset --hard`, `git -C repo reset --hard`, `sudo -u root git reset --hard` and `bash -c 'cd x && git reset --hard'`. That covers quotes and backslashes, `VAR=value` in front, wrappers (`sudo`, `doas`, `env`, `nice`, `nohup`, `time`, `timeout`, `stdbuf`, `command`, `exec`, `xargs`...), the folder or `.exe` on the program, git's own options, and what `sh -c`, `bash -c`, `cmd /c` and `powershell -Command` or `-EncodedCommand` run, three levels deep. A command nested deeper than that is asked about.
 - `tools` match tool names: Claude Code's names (`Bash`, `Edit`, `WebFetch`...) for every agent, and `mcp__<server>__<tool>` for MCP tools.
 - One rule fires when any of its lists matches. A `deny` anywhere wins over an `ask`.
 - `"access": "write"` limits a rule to tools that can change files.
 - **`deny`** stops the call before it runs, and the agent is told why. **`ask`** makes Claude Code ask you; agents that can't pause to ask block the call and tell the agent to check with you.
 
-Paths like `$HOME/.ssh`, `%USERPROFILE%\.ssh` or Git Bash's `/c/Users/...` are recognised for what they are.
+Paths like `$HOME/.ssh`, `%USERPROFILE%\.ssh` or Git Bash's `/c/Users/...` are recognised for what they are, and so are paths with quotes inside (`~/.s"sh"/id_rsa`) and paths inside `bash -c "..."`.
+
+Property-based tests (`test/guard-fuzz.test.ts`, with fast-check) generate thousands of spellings of denied commands and paths on every test run and check that each one is still denied.
 
 Rules match what a tool call says, not what it does: a script can reach a file without naming it. They catch mistakes and slow a misled agent down; they are not a sandbox. Blocked and asked-about calls show up in the timeline, the web UI and reports. A broken `policy.json` is reported by `zerostel status` and `doctor`, and the last version that worked stays in force. A problem inside Zerostel never blocks a tool. One exception, on purpose: a call too big to check in full (a command over 256 KB, more than 1,000 paths) is asked about rather than waved through when you have path or command rules, since padding a call is an easy way around them. Agents that can't ask treat that as a block.
 

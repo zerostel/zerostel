@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "fast-check": "4.10.2",
     "postject": "1.0.0-alpha.6",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",

@@ -14,7 +14,7 @@ export interface Rule {
   action: Action;
   /** globs; `~/` is your home folder, other relative globs start at the project root */
   paths?: string[];
-  /** globs over each part of a shell command (split at &&, ||, ;, | and newlines); `*` matches anything */
+  /** globs over each part of a shell command (split at &&, ||, ;, | and newlines), also read the way the shell runs it (see parseCommand); `*` matches anything */
   commands?: string[];
   /** globs over tool names, e.g. "WebFetch" or "mcp__github__delete_*" */
   tools?: string[];
@@ -233,7 +233,9 @@ export interface Glob {
 
 function compile(pattern: string, kind: 'path' | 'text', fold: boolean): Glob {
   const toks: Tok[] = [];
-  const p = fold ? pattern.toLowerCase() : pattern;
+  // by code point, the way test() reads the input: a character outside the
+  // BMP (an emoji, some CJK) is one character on both sides
+  const p = [...(fold ? pattern.toLowerCase() : pattern)];
   for (let i = 0; i < p.length; i++) {
     const ch = p[i]!;
     if (kind === 'path' && ch === '*' && p[i + 1] === '*') {
@@ -247,6 +249,7 @@ function compile(pattern: string, kind: 'path' | 'text', fold: boolean): Glob {
     else toks.push({ t: 'c', ch });
   }
   const n = toks.length;
+  // `*` and `**/` may match nothing: reaching one also reaches what follows
   const closure = (set: Uint8Array) => {
     for (let i = 0; i < n; i++) if (set[i] && (toks[i]!.t === '*' || toks[i]!.t === 'dirs')) set[i + 1] = 1;
   };
@@ -254,29 +257,35 @@ function compile(pattern: string, kind: 'path' | 'text', fold: boolean): Glob {
     test(input: string) {
       const s = fold ? input.toLowerCase() : input;
       let cur = new Uint8Array(n + 1);
+      // inside a `**/` that has started on some folders: only a `/` ends it
+      let inDirs = new Uint8Array(n);
       cur[0] = 1;
       closure(cur);
       for (const ch of s) {
         const next = new Uint8Array(n + 1);
+        const nextDirs = new Uint8Array(n);
         let any = false;
         for (let i = 0; i < n; i++) {
-          if (!cur[i]) continue;
           const tk = toks[i]!;
+          if (tk.t === 'dirs' && (cur[i] || inDirs[i])) {
+            nextDirs[i] = 1;
+            if (ch === '/') next[i + 1] = 1;
+            any = true;
+            continue;
+          }
+          if (!cur[i]) continue;
           if (tk.t === 'c' ? tk.ch === ch : tk.t === '?' ? kind === 'text' || ch !== '/' : false) {
             next[i + 1] = 1;
             any = true;
           } else if (tk.t === '*' && (tk.slash || ch !== '/')) {
             next[i] = 1;
             any = true;
-          } else if (tk.t === 'dirs') {
-            next[i] = 1;
-            if (ch === '/') next[i + 1] = 1;
-            any = true;
           }
         }
         if (!any) return false;
         closure(next);
         cur = next;
+        inDirs = nextDirs;
       }
       return cur[n] === 1;
     },
@@ -325,27 +334,262 @@ function absPatterns(pattern: string, call: Call): string[] {
 export function commandPaths(command: string, max = LIMITS.paths): string[] {
   const out: string[] = [];
   for (const m of command.matchAll(/"([^"]*)"|'([^']*)'|([^\s"';|&<>()`]+)/g)) {
-    const tok = (m[1] ?? m[2] ?? m[3] ?? '').replace(/^\d?>+|^<+/, '');
-    if (!tok || tok.startsWith('-') || /^[a-z][a-z0-9+.-]*:\/\//i.test(tok)) continue;
-    const named = /[\\/]/.test(tok) || tok.startsWith('~') || tok.startsWith('.') || tok.startsWith('$') || tok.startsWith('%');
-    const fileName = /^[\w@+-][\w.@+-]*\.[A-Za-z0-9]{1,10}$/.test(tok) && !/^[\d.]+$/.test(tok);
-    if (named || fileName) out.push(tok);
+    const tok = pathLike(m[1] ?? m[2] ?? m[3] ?? '');
+    if (tok) out.push(tok);
     if (out.length > max) break;
   }
   return out;
 }
 
+/** The word as a path, if it looks like one; redirections (`>file`, `2>>file`, `<file`) count. */
+function pathLike(word: string): string | null {
+  const tok = word.replace(/^\d?>+|^<+/, '');
+  if (!tok || tok.startsWith('-') || /^[a-z][a-z0-9+.-]*:\/\//i.test(tok)) return null;
+  const named = /[\\/]/.test(tok) || tok.startsWith('~') || tok.startsWith('.') || tok.startsWith('$') || tok.startsWith('%');
+  const fileName = /^[\w@+-][\w.@+-]*\.[A-Za-z0-9]{1,10}$/.test(tok) && !/^[\d.]+$/.test(tok);
+  return named || fileName ? tok : null;
+}
+
+/**
+ * The words of one command the way a POSIX shell passes them on: quotes
+ * removed, so `'rm' -rf x` and `~/.s"sh"/id_rsa` read as `rm -rf x` and
+ * `~/.ssh/id_rsa`. With `escapes`, a backslash makes the next character
+ * plain (`\rm` is `rm`); without, it stays, as in cmd and PowerShell paths.
+ */
+export function shellWords(segment: string, escapes = true): string[] {
+  const words: string[] = [];
+  let cur = '';
+  let inWord = false;
+  let quote: string | null = null;
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i]!;
+    if (quote === "'") {
+      if (ch === "'") quote = null;
+      else cur += ch;
+    } else if (quote === '"') {
+      if (ch === '"') quote = null;
+      else if (escapes && ch === '\\' && '"\\$`'.includes(segment[i + 1] ?? '')) cur += segment[++i];
+      else cur += ch;
+    } else if (ch === "'" || ch === '"') {
+      quote = ch;
+      inWord = true;
+    } else if (escapes && ch === '\\' && i + 1 < segment.length) {
+      cur += segment[++i];
+      inWord = true;
+    } else if (/\s/.test(ch)) {
+      if (inWord) words.push(cur);
+      cur = '';
+      inWord = false;
+    } else {
+      cur += ch;
+      inWord = true;
+    }
+  }
+  if (inWord) words.push(cur);
+  return words;
+}
+
+// Programs that run the command after them. Options that take a value in the
+// next word are listed, so that value isn't mistaken for the command.
+const WRAPPERS: Record<string, string[]> = {
+  command: [], builtin: [], exec: ['-a'], nohup: [], noglob: [], time: ['-f', '-o', '--format', '--output'], unbuffer: [], busybox: [],
+  nice: ['-n', '--adjustment'], ionice: ['-c', '-n', '-p', '--class', '--classdata'], stdbuf: ['-i', '-o', '-e'],
+  timeout: ['-s', '-k', '--signal', '--kill-after'], env: ['-u', '-C', '-S', '--unset', '--chdir', '--split-string'],
+  sudo: ['-u', '-g', '-C', '-h', '-p', '-r', '-t', '-U', '-D', '-R', '--user', '--group', '--close-from', '--host', '--prompt', '--role', '--type', '--other-user', '--chdir', '--chroot'],
+  doas: ['-u', '-C'], xargs: ['-I', '-L', '-n', '-P', '-s', '-d', '-E', '-a', '--arg-file', '--delimiter', '--max-args', '--max-procs', '--max-lines', '--replace'],
+};
+// git's own options before the subcommand: `git -C repo reset --hard` is `git reset --hard`
+const GIT_TAKES_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env', '--super-prefix']);
+const GIT_FLAGS = new Set(['--no-pager', '-P', '-p', '--paginate', '--bare', '--no-replace-objects', '--literal-pathspecs', '--glob-pathspecs', '--noglob-pathspecs', '--icase-pathspecs', '--no-optional-locks', '--no-advice', '--no-lazy-fetch']);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+/** A program's plain name: `/usr/bin/git` and `C:\Program Files\Git\cmd\git.exe` are `git`. */
+function programName(word: string): string {
+  const bare = word.replace(/^["']+|["']+$/g, '');
+  return (bare.split(/[\\/]/).pop() ?? bare).toLowerCase().replace(/\.(exe|cmd|bat|com)$/, '');
+}
+
+/**
+ * The same command with what doesn't change what runs taken off, one step at
+ * a time: `VAR=value` in front, wrappers (sudo, env, nice, timeout, xargs...)
+ * with their options, the folder in front of the program, and git's own
+ * options. Every step is kept, so a rule can match any of them.
+ */
+function unwrap(words: string[]): string[][] {
+  const out: string[][] = [];
+  let w = words;
+  for (let round = 0; round < 16 && w.length; round++) {
+    let next = w;
+    const head = programName(w[0]!);
+    if (ASSIGNMENT.test(w[0]!)) {
+      let i = 0;
+      while (i < w.length - 1 && ASSIGNMENT.test(w[i]!)) i++;
+      if (i) next = w.slice(i);
+    } else if (head !== w[0]) {
+      next = [head, ...w.slice(1)];
+    } else if (WRAPPERS[head]) {
+      const takes = WRAPPERS[head];
+      let j = 1;
+      while (j < w.length && w[j]!.startsWith('-')) {
+        const opt = w[j]!;
+        j++;
+        if (opt === '--') break;
+        if (takes.includes(opt)) j++;
+      }
+      if ((head === 'timeout' || head === 'nice') && /^[+-]?\d/.test(w[j] ?? '')) j++;
+      if (head === 'env' || head === 'sudo') while (j < w.length - 1 && ASSIGNMENT.test(w[j]!)) j++;
+      if (j < w.length) next = w.slice(j);
+    } else if (head === 'git') {
+      let j = 1;
+      while (j < w.length) {
+        const opt = w[j]!;
+        if (GIT_TAKES_VALUE.has(opt)) j += 2;
+        else if (GIT_FLAGS.has(opt) || /^--(git-dir|work-tree|namespace|exec-path|config-env|super-prefix)=/.test(opt) || /^-c\S/.test(opt)) j++;
+        else break;
+      }
+      if (j > 1 && j < w.length) next = ['git', ...w.slice(j)];
+    }
+    if (next === w) break;
+    w = next;
+    out.push(w);
+  }
+  return out;
+}
+
+/**
+ * What a shell started by this command runs: `bash -c "..."`, `cmd /c ...`,
+ * `powershell -Command ...` or `-EncodedCommand`. cmd and PowerShell read
+ * quotes their own way, so for them the text after the switch, as written,
+ * counts too.
+ */
+function innerCommands(words: string[], raw: string): string[] {
+  const head = programName(words[0] ?? '');
+  const out: string[] = [];
+  if (head === 'cmd') {
+    const m = /\s\/[ck]\s+([\s\S]+)$/i.exec(raw);
+    if (m) out.push(m[1]!);
+  } else if (head === 'powershell' || head === 'pwsh') {
+    const m = /\s-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?\s+([\s\S]+)$/i.exec(raw);
+    if (m) out.push(m[1]!);
+  }
+  if (/^(?:ba|da|k|z|a|fi|mk|tc|c)?sh$/.test(head)) {
+    for (let j = 1; j < words.length; j++) {
+      const opt = words[j]!;
+      if (/^-[A-Za-z]*c[A-Za-z]*$/.test(opt)) {
+        if (words[j + 1] !== undefined) out.push(words[j + 1]!);
+        break;
+      }
+      if (!opt.startsWith('-') && !opt.startsWith('+')) break;
+      // `bash -o pipefail -c ...`: these options take the next word
+      if (/^[-+][oO]$|^--(?:rcfile|init-file)$/.test(opt)) j++;
+    }
+  } else if (head === 'cmd') {
+    const k = words.findIndex((x, j) => j > 0 && /^\/[ck]$/i.test(x));
+    if (k > 0 && k < words.length - 1) out.push(words.slice(k + 1).join(' '));
+  } else if (head === 'powershell' || head === 'pwsh') {
+    for (let j = 1; j < words.length; j++) {
+      const opt = words[j]!.toLowerCase();
+      const rest = words.slice(j + 1).join(' ');
+      if (opt.length >= 2 && '-command'.startsWith(opt) && rest) out.push(rest);
+      else if ((opt === '-e' || opt === '-ec' || (opt.length >= 3 && '-encodedcommand'.startsWith(opt))) && words[j + 1]) {
+        const b64 = words[j + 1]!;
+        if (b64.length <= 349_528 && /^[A-Za-z0-9+/]+={0,2}$/.test(b64)) out.push(Buffer.from(b64, 'base64').toString('utf16le'));
+      } else if (!opt.startsWith('-') && !out.length) {
+        // `powershell Remove-Item x` runs its arguments as a command
+        out.push(words.slice(j).join(' '));
+      }
+    }
+  }
+  return out;
+}
+
+interface Parsed {
+  parts: string[];
+  paths: string[];
+  /** commands already read, so a command repeated or nested again costs nothing */
+  seen: Set<string>;
+  /** set when there was too much to read in full: the caller asks rather than allows */
+  overflow: boolean;
+}
+
+// how many readings of one call the rules look at, at most
+const MAX_PARTS = 200_000;
+
 // Separate commands: && || ; | & newlines, and what runs inside ( ), $( ) and backticks.
-function segments(command: string): string[] {
-  return command
-    .split(/\s*(?:&&|\|\||;|\||&|\r?\n|\$\(|\(|\)|`)\s*/)
-    .map((s) => s.trim().replace(/\s+/g, ' '))
-    .filter(Boolean)
+// This split ignores quotes on purpose, so a command hidden inside a quoted
+// string is seen on its own too; quotedSplit below keeps quoted strings whole.
+const SEPARATORS = /\s*(?:&&|\|\||;|\||&|\r?\n|\$\(|\(|\)|`)\s*/;
+
+/** Commands split the way the shell splits them: at && || ; | & and line breaks outside quotes. */
+function quotedSplit(command: string, escapes: boolean): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quote: string | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = null;
+      else if (quote === '"' && escapes && ch === '\\' && i + 1 < command.length) cur += command[++i];
+    } else if (ch === "'" || ch === '"') {
+      quote = ch;
+      cur += ch;
+    } else if (escapes && ch === '\\' && i + 1 < command.length) {
+      cur += ch + command[++i];
+    } else if (ch === ';' || ch === '&' || ch === '|' || ch === '\n' || ch === '\r') {
+      if (cur.trim()) out.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+/**
+ * Every way the rules see a command: each part on its own, as written and as
+ * the shell reads it (see shellWords and unwrap), and what the shells it
+ * starts run, down to three levels. Paths named anywhere along the way too.
+ */
+function parseCommand(command: string, platform: NodeJS.Platform, depth = 0, out: Parsed = { parts: [], paths: [], seen: new Set(), overflow: false }): Parsed {
+  if (out.seen.has(command)) return out;
+  out.seen.add(command);
+  const pieces = new Set([...command.split(SEPARATORS), ...quotedSplit(command, true), ...(platform === 'win32' ? quotedSplit(command, false) : [])]);
+  const nested = new Set<string>();
+  for (const raw of pieces) {
+    if (out.parts.length > MAX_PARTS) {
+      out.overflow = true;
+      return out;
+    }
+    const seg = raw.trim().replace(/\s+/g, ' ');
+    if (!seg || out.seen.has(` ${raw}`)) continue;
+    out.seen.add(` ${raw}`);
+    out.parts.push(seg);
     // `zerostel check -- git reset --hard` runs `git reset --hard`: rules see that too
-    .flatMap((s) => {
-      const inner = /^(?:npx\s+)?zerostel\s+(?:check|run)\b.*?\s--\s+(.+)$/.exec(s)?.[1];
-      return inner ? [s, inner] : [s];
-    });
+    const wrapped = /^(?:npx\s+)?zerostel\s+(?:check|run)\b.*?\s--\s+(.+)$/.exec(seg)?.[1];
+    if (wrapped) nested.add(wrapped);
+    // Git Bash reads backslashes as escapes; cmd and PowerShell keep them in paths
+    const readings = platform === 'win32' ? [shellWords(raw), shellWords(raw, false)] : [shellWords(raw)];
+    for (const words of readings) {
+      for (const form of [words, ...unwrap(words)]) {
+        if (!form.length) continue;
+        out.parts.push(form.join(' '));
+        for (const word of form) {
+          const p = pathLike(word);
+          if (p) out.paths.push(p);
+        }
+        for (const inner of innerCommands(form, raw)) nested.add(inner);
+      }
+    }
+  }
+  // what the shells it starts run, three levels down at most; deeper than that is asked about
+  for (const inner of nested) {
+    if (depth >= 3) {
+      out.overflow = true;
+      break;
+    }
+    parseCommand(inner, platform, depth + 1, out);
+  }
+  return out;
 }
 
 /**
@@ -408,12 +652,14 @@ export function evaluate(policy: Policy | null, call: Call): Decision | null {
   const fold = call.platform === 'win32' || call.platform === 'darwin';
   const gaps: string[] = call.incomplete ? [call.incomplete] : [];
   const command = call.command && call.command.length > LIMITS.command ? (gaps.push(`a command over ${LIMITS.command / 1024} KB`), call.command.slice(0, LIMITS.command)) : call.command;
-  const fromCommand = command ? commandPaths(command) : [];
+  const parsed = command ? parseCommand(command, call.platform) : { parts: [], paths: [], seen: new Set<string>(), overflow: false };
+  if (parsed.overflow) gaps.push('a command nested or repeated too deeply to read in full');
+  const fromCommand = command ? [...new Set([...commandPaths(command), ...parsed.paths])] : [];
   const given = [...call.paths, ...fromCommand];
   if (given.length > LIMITS.paths) gaps.push(`more than ${LIMITS.paths} paths`);
   if (given.some((p) => p.length > LIMITS.pathLength)) gaps.push('a path too long to check');
   const named = given.slice(0, LIMITS.paths).flatMap((p) => normalizePath(p, call, gaps));
-  const parts = command ? [command.trim().replace(/\s+/g, ' '), ...segments(command)] : [];
+  const parts = command ? [...new Set([command.trim().replace(/\s+/g, ' '), ...parsed.parts])] : [];
   let ask: Decision | null = null;
   for (const [i, r] of policy.rules.entries()) {
     let hit: string | null = null;

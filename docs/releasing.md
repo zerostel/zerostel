@@ -40,6 +40,7 @@ How a maintainer cuts a release. Zerostel ends up inside every user's agent hook
 
 8. Check that the formula's hash matches what npm now serves (`node scripts/release-manifests.mjs <version>` prints it), then commit the formula to the tap and the manifest to the bucket (artifact `package-manifests`).
 9. Update the MCP Registry entry: Actions → **MCP Registry** → Run workflow. It logs in with the run's GitHub OIDC token, which the registry accepts for `io.github.zerostel/*`, so no token is involved. (`mcp-publisher login github` on a laptop only grants a personal namespace unless the registry's GitHub App can see the organization.)
+10. Point the Glama listing at the new version: on glama.ai, the server's Admin → Dockerfile, change the build step to `npm install -g zerostel@<version>`, then Build & Release. The listing's score and the awesome-mcp-servers badge come from that build.
 
 Users can check a downloaded executable with `gh attestation verify <file> --repo zerostel/zerostel`.
 

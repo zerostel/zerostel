@@ -153,8 +153,8 @@ npm install -g zerostel       # 或是保留 zerostel 指令
 
 ## 開發方向
 
-- **已完成：** 七個 agent 的記錄與倒帶、零點、網頁介面、可分享的報告、可驗證的紀錄、防護規則、MCP server、監看專案外的檔案、連到程式版本的檢查結果、交接、保留其他 session 修改的倒帶。
-- **接下來：** 不需要你的金鑰也能驗證的簽章報告；透過 Zerostel 閘道記錄其他 MCP server 的呼叫；找出是哪一步讓檢查失敗、是哪個測試壞掉；實驗性 agent 的真機驗證。
+- **已完成：** 七個 agent 的記錄與倒帶、零點、網頁介面、可分享的報告、可驗證的紀錄、防護規則、MCP server、監看專案外的檔案、連到程式版本的檢查結果與失敗的測試名稱、交接、保留其他 session 修改的倒帶、用 property-based 測試檢驗的防護規則。
+- **接下來：** 不需要你的金鑰也能驗證的簽章報告；透過 Zerostel 閘道記錄其他 MCP server 的呼叫；倒帶到某個測試最後一次通過的那一步；實驗性 agent 的真機驗證。
 - **歡迎幫忙：** [macOS 和 Linux 的實測回報](https://github.com/zerostel/zerostel/issues/4)，以及標了 [help wanted](https://github.com/zerostel/zerostel/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) 的 issue。
 
 ## 參與開發

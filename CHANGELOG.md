@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-08)
+
+Which tests failed, guardrails that read a command the way the shell runs it, and MCP tools that say what they do. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.
 
 Security
 

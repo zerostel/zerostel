@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- SECURITY.md names 0.3.x as the release line that gets security fixes (it still said 0.1.x), and a test keeps it current.
+- The Claude Code plugin has its own repository for Anthropic's plugin directory, [zerostel/claude-plugin](https://github.com/zerostel/claude-plugin): the npm release's files, checked against its provenance (#16).
+
 ## 0.3.0 (2026-10-08)
 
 Which tests failed, guardrails that read a command the way the shell runs it, and MCP tools that say what they do. After upgrading, run `zerostel install` once more so your agents' hooks run the new version.

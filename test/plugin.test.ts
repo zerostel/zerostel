@@ -5,6 +5,13 @@ import { claudeCode } from '../src/agents/adapters.js';
 const read = (f: string) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const pkg = read('package.json');
 
+describe('SECURITY.md', () => {
+  it('names the current release line as the one that gets security fixes', () => {
+    const [major, minor] = (pkg.version as string).split('.');
+    expect(fs.readFileSync('SECURITY.md', 'utf8')).toContain(`| ${major}.${minor}.x | ✅ |`);
+  });
+});
+
 describe('Claude Code plugin files', () => {
   it('match the package version and the events zerostel install registers', () => {
     const plugin = read('.claude-plugin/plugin.json');

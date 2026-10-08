@@ -15,7 +15,8 @@ Security fixes go into the latest release. Zerostel is at 0.x, so upgrade rather
 
 | Version | Gets security fixes |
 |---|---|
-| 0.1.x | ✅ |
+| 0.3.x | ✅ |
+| older | ❌: upgrade |
 
 ## Checking a release
 
